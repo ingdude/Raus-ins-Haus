@@ -157,8 +157,8 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                # CONTENT ROW (Bild links, Text rechts) - Sichere Spaltenzuweisung
-                col_img, col_txt = st.columns(2)
+                # CONTENT ROW (Bild links, Text rechts)
+                col_img, col_txt = st.columns()
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
@@ -211,7 +211,7 @@ if menu == "🏠 Übersicht":
                     raw_score = row.get(mein_score_col, 3)
                     safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
-                    c_slide, c_text = st.columns(2)
+                    c_slide, c_text = st.columns()
                     with c_slide:
                         new_score = st.slider(f"Deine Note", 1, 5, safe_score, key=f"s_{real_index}")
                         if st.button("Speichern", key=f"btn_{real_index}", use_container_width=True):
@@ -258,15 +258,14 @@ elif menu == "🗺️ Kartenansicht":
             
             m = folium.Map(location=[avg_lat, avg_lon], zoom_start=9)
             
-            # STABILE LÖSUNG: CircleMarker statt Image-Marker
             for p in map_points:
                 folium.CircleMarker(
                     location=[p["lat"], p["lon"]],
-                    radius=10, # Größe des Kreises
-                    color="#1f77b4", # Randfarbe
+                    radius=10, 
+                    color="#1f77b4", 
                     fill=True,
-                    fill_color="#1f77b4", # Füllfarbe
-                    fill_opacity=0.8, # Leicht transparent
+                    fill_color="#1f77b4", 
+                    fill_opacity=0.8, 
                     tooltip=p["Titel"],
                     popup=p["Titel"]
                 ).add_to(m)
@@ -304,27 +303,66 @@ elif menu == "➕ Objekt hinzufügen":
             save_data(pd.concat([df, new_row], ignore_index=True))
             st.success("Erfolgreich hinzugefügt!")
 
-# --- 📅 KALENDER ---
+# --- 📅 NEUER DOODLE-STYLE KALENDER ---
 elif menu == "📅 Besichtigungs-Kalender":
-    st.title("Besichtigungs-Planer")
+    st.title("Besichtigungs-Matrix (Doodle-Style)")
+    st.write("Neue Terminvorschläge einfach in die erste Spalte tippen. Häkchen setzen, wo ihr Zeit habt!")
+    
     try:
         df_cal = load_data("Kalender")
+        if df_cal.empty:
+            raise ValueError("Leere Tabelle")
     except:
-        df_cal = pd.DataFrame([{"Datum / Tag": "Samstag Vormittag", "Wer kann?": "", "Anmerkung": ""}])
+        # Initialer Aufbau, wenn die Tabelle leer ist
+        init_data = {"Terminvorschlag": ["Samstag 10:00", "Sonntag 14:00"]}
+        for user in user_liste:
+            init_data[user] = [False, False] # Startet mit leeren Checkboxen
+        df_cal = pd.DataFrame(init_data)
         
-    edited_df = st.data_editor(df_cal, num_rows="dynamic", use_container_width=True)
+    # Sicherstellen, dass alle aktuellen User Spalten haben
+    for user in user_liste:
+        if user not in df_cal.columns:
+            df_cal[user] = False # Neue Spalte mit False auffüllen
+            
+    # Konvertierung der User-Spalten in Booleans (damit Checkboxen entstehen)
+    for user in user_liste:
+        df_cal[user] = df_cal[user].astype(bool)
+
+    # Die Matrix anzeigen
+    edited_df = st.data_editor(
+        df_cal, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        hide_index=True
+    )
     
-    if st.button("Kalender speichern"):
+    if st.button("Speichern & Auswerten", type="primary"):
         save_data(edited_df, sheet_name="Kalender")
-        st.success("Gespeichert!")
+        st.success("Kalender gespeichert!")
         st.rerun()
 
     st.divider()
-    st.subheader("🔥 Top Termine (>= 2 Personen)")
+    st.subheader("🔥 Top Termine")
+    
+    # Auswertung: Zählt, wie viele Häkchen pro Zeile gesetzt sind
+    gute_termine = []
     for idx, row in edited_df.iterrows():
-        namen = [n.strip() for n in str(row.get("Wer kann?", "")).split(",") if n.strip()]
-        if len(namen) >= 2:
-            st.success(f"✅ **{row.get('Datum / Tag', 'Unbekannt')}**: {', '.join(namen)}")
+        zusagen = sum([1 for user in user_liste if row.get(user) == True])
+        if zusagen >= 2:
+            teilnehmer = [user for user in user_liste if row.get(user) == True]
+            gute_termine.append({
+                "termin": row.get('Terminvorschlag', 'Unbekannt'),
+                "anzahl": zusagen,
+                "wer": ', '.join(teilnehmer)
+            })
+            
+    if gute_termine:
+        # Sortiert nach der Anzahl der Zusagen (beste Termine zuerst)
+        gute_termine_sortiert = sorted(gute_termine, key=lambda x: x["anzahl"], reverse=True)
+        for t in gute_termine_sortiert:
+            st.success(f"✅ **{t['termin']}**: {t['anzahl']} Zusagen ({t['wer']})")
+    else:
+        st.info("Aktuell gibt es noch keine Termine mit mind. 2 Zusagen.")
 
 # --- ⚙️ ADMIN (USER-VERWALTUNG) ---
 elif menu == "⚙️ Admin (User)":
