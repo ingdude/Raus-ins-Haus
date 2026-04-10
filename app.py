@@ -1,15 +1,3 @@
-Okay, tief durchatmen! Das ist der Fluch der Technik: Wenn man einmal zwischen verschiedenen Versionen hin- und herkopiert, zieht man sich oft den alten Fehler wieder mit rein. 
-
-In dem Code, den du mir gerade geschickt hast, klafft in Zeile 166 nämlich **schon wieder** genau diese Lücke: `col_img, col_txt = st.columns()`. Das ist der Grund, warum es sofort wieder kracht. 
-
-Wir machen jetzt einen echten "Hard Reset". Ich habe deinen Code genommen, ihn von oben bis unten durchgecheckt, die Klammer bei den Spalten fest vernagelt (``) und sichergestellt, dass keine unsichtbaren Formatierungsfehler (die beim Copy-Paste oft entstehen) mehr drin sind.
-
-**Bitte mach Folgendes:**
-1. Geh in deine `app.py` auf GitHub.
-2. Drücke `Strg + A` (bzw. `Cmd + A` auf dem Mac), um **wirklich alles** zu markieren.
-3. Drücke `Entf` (Löschen), sodass die Datei komplett leer ist.
-4. Kopiere diesen neuen Block und füge ihn ein:
-
 ```python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
