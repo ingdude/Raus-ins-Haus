@@ -68,7 +68,7 @@ if menu == "🏠 Übersicht":
         # Wir zeigen die Kacheln an
         for index, row in display_df.iterrows():
             with st.container(border=True):
-                col1, col2 = st.columns()
+                col1, col2 = st.columns(3)
                 
                 with col1:
                     if pd.notnull(row["Bild-URL"]) and str(row["Bild-URL"]).startswith("http"):
