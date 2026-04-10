@@ -2,3 +2,5 @@ streamlit
 st-gsheets-connection
 pandas
 geopy
+folium
+streamlit-folium
