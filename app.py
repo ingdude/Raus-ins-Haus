@@ -127,7 +127,7 @@ if menu == "🏠 Übersicht":
             with st.container(border=True):
                 st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
                 
-                col_img, col_txt = st.columns()
+                col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
