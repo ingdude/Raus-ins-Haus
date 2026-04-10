@@ -43,7 +43,7 @@ def save_data(data, sheet_name="Immobilien"):
 @st.cache_data
 def get_coords(address):
     try:
-        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v7")
+        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v8")
         location = geolocator.geocode(f"{address}, Österreich")
         if location:
             return location.latitude, location.longitude
@@ -130,7 +130,6 @@ if menu == "🏠 Übersicht":
                 with c_title:
                     st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
                 with c_menu:
-                    # Das neue Popover 3-Punkte Menü
                     with st.popover("⋮"):
                         st.markdown("**✏️ Bearbeiten / Löschen**")
                         with st.form(f"edit_{real_index}"):
@@ -158,8 +157,8 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                # CONTENT ROW (Bild links, Text rechts)
-                col_img, col_txt = st.columns(2)
+                # CONTENT ROW (Bild links, Text rechts) - HIER IST DIE KLAMMER JETZT 100% SICHER
+                col_img, col_txt = st.columns()
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
@@ -186,7 +185,7 @@ if menu == "🏠 Übersicht":
                         
                     st.divider()
                     
-                    # KOMMENTARE OFFEN ANZEIGEN (Mit kleinerer Schriftart via HTML/CSS)
+                    # KOMMENTARE OFFEN ANZEIGEN
                     st.markdown("##### 💬 Feedback der Gruppe")
                     comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
                     hat_kommentare = False
@@ -195,7 +194,6 @@ if menu == "🏠 Übersicht":
                         txt = str(row.get(c_col, "")).strip()
                         if txt and txt != "nan":
                             user_wer = c_col.replace('Kommentar_', '')
-                            # Eine kleine graue Box mit reduzierter Schriftgröße
                             st.markdown(f"""
                             <div style='background-color: rgba(128,128,128,0.1); padding: 8px; border-radius: 5px; margin-bottom: 5px; font-size: 0.85em;'>
                                 <strong>{user_wer}:</strong> {txt}
@@ -217,13 +215,11 @@ if menu == "🏠 Übersicht":
                     with c_slide:
                         new_score = st.slider(f"Deine Note", 1, 5, safe_score, key=f"s_{real_index}")
                         if st.button("Speichern", key=f"btn_{real_index}", use_container_width=True):
-                            # Speichert Slider und Text
                             df.at[real_index, mein_score_col] = st.session_state[f"s_{real_index}"]
                             df.at[real_index, mein_comm_col] = st.session_state[f"c_{real_index}"]
                             save_data(df)
                             st.rerun()
                     with c_text:
-                        # Wir nutzen session_state um den Text direkt in der Spalte daneben zu greifen
                         st.text_area("Dein Kommentar", str(row.get(mein_comm_col, "")).replace("nan", ""), key=f"c_{real_index}", height=100)
 
 # --- 🗺️ KARTENANSICHT ---
@@ -280,62 +276,4 @@ elif menu == "🗺️ Kartenansicht":
 
 # --- ➕ OBJEKT HINZUFÜGEN ---
 elif menu == "➕ Objekt hinzufügen":
-    st.title("Neues Objekt erfassen")
-    df = load_data("Immobilien")
-    with st.form("add_form", clear_on_submit=True):
-        titel = st.text_input("Titel (z.B. Haus am See)")
-        url = st.text_input("Anzeigen-Link (URL)")
-        bild = st.text_input("Bild-URL (Rechtsklick auf Bild -> Adresse kopieren)")
-        kat = st.selectbox("Typ", ["Haus", "Grundstück"])
-        preis = st.number_input("Preis (€)", step=1000)
-        w_f = st.number_input("Wohnfläche (m²)", step=1)
-        g_f = st.number_input("Grundfläche (m²)", step=10)
-        ort = st.text_input("Ort / PLZ")
-        km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
-        
-        if st.form_submit_button("Objekt speichern"):
-            new_row = pd.DataFrame([{
-                "Titel": titel, "URL": url, "Bild-URL": bild, "Kategorie": kat,
-                "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
-                "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name
-            }])
-            save_data(pd.concat([df, new_row], ignore_index=True))
-            st.success("Erfolgreich hinzugefügt!")
-
-# --- 📅 KALENDER ---
-elif menu == "📅 Besichtigungs-Kalender":
-    st.title("Besichtigungs-Planer")
-    try:
-        df_cal = load_data("Kalender")
-    except:
-        df_cal = pd.DataFrame([{"Datum / Tag": "Samstag Vormittag", "Wer kann?": "", "Anmerkung": ""}])
-        
-    edited_df = st.data_editor(df_cal, num_rows="dynamic", use_container_width=True)
-    
-    if st.button("Kalender speichern"):
-        save_data(edited_df, sheet_name="Kalender")
-        st.success("Gespeichert!")
-        st.rerun()
-
-    st.divider()
-    st.subheader("🔥 Top Termine (>= 2 Personen)")
-    for idx, row in edited_df.iterrows():
-        namen = [n.strip() for n in str(row.get("Wer kann?", "")).split(",") if n.strip()]
-        if len(namen) >= 2:
-            st.success(f"✅ **{row.get('Datum / Tag', 'Unbekannt')}**: {', '.join(namen)}")
-
-# --- ⚙️ ADMIN (USER-VERWALTUNG) ---
-elif menu == "⚙️ Admin (User)":
-    st.title("User verwalten")
-    st.write("Hier kannst du Namen hinzufügen oder entfernen, die im Login-Menü erscheinen.")
-    
-    try:
-        current_user_df = load_data("User")
-    except:
-        current_user_df = pd.DataFrame({"Name": ["Anja", "Jan", "Katja", "Laurenz", "Timo"]})
-        
-    edited_user_df = st.data_editor(current_user_df, num_rows="dynamic", use_container_width=True)
-    
-    if st.button("User-Liste speichern"):
-        save_data(edited_user_df, sheet_name="User")
-        st.success("Die User-Liste wurde aktualisiert!")
+    st.title("Neues
