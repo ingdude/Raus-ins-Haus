@@ -78,7 +78,7 @@ if menu == "🏠 Übersicht":
 
         for index, row in display_df.iterrows():
             with st.container(border=True):
-                col_img, col_txt = st.columns()
+                col_img, col_txt = st.columns(2)
                 with col_img:
                     if str(row.get("Bild-URL", "")).startswith("http"):
                         st.image(row["Bild-URL"], use_container_width=True)
