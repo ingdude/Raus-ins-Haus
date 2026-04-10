@@ -157,7 +157,7 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                # CONTENT ROW (Bild links, Text rechts) - HIER IST DIE KLAMMER JETZT 100% SICHER
+                # CONTENT ROW (Bild links, Text rechts) - Sichere Spaltenzuweisung
                 col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
@@ -211,7 +211,7 @@ if menu == "🏠 Übersicht":
                     raw_score = row.get(mein_score_col, 3)
                     safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
-                    c_slide, c_text = st.columns(2)
+                    c_slide, c_text = st.columns()
                     with c_slide:
                         new_score = st.slider(f"Deine Note", 1, 5, safe_score, key=f"s_{real_index}")
                         if st.button("Speichern", key=f"btn_{real_index}", use_container_width=True):
@@ -225,7 +225,7 @@ if menu == "🏠 Übersicht":
 # --- 🗺️ KARTENANSICHT ---
 elif menu == "🗺️ Kartenansicht":
     st.title("Wo liegen die Objekte? 🗺️")
-    st.write("Fahre mit der Maus über eine blaue Nadel, um zu sehen, um welches Haus es sich handelt!")
+    st.write("Fahre mit der Maus über einen blauen Kreis, um zu sehen, um welches Haus es sich handelt!")
     
     df = load_data("Immobilien")
     
@@ -258,9 +258,15 @@ elif menu == "🗺️ Kartenansicht":
             
             m = folium.Map(location=[avg_lat, avg_lon], zoom_start=9)
             
+            # STABILE LÖSUNG: CircleMarker statt Image-Marker
             for p in map_points:
-                folium.Marker(
+                folium.CircleMarker(
                     location=[p["lat"], p["lon"]],
+                    radius=10, # Größe des Kreises
+                    color="#1f77b4", # Randfarbe
+                    fill=True,
+                    fill_color="#1f77b4", # Füllfarbe
+                    fill_opacity=0.8, # Leicht transparent
                     tooltip=p["Titel"],
                     popup=p["Titel"]
                 ).add_to(m)
@@ -321,17 +327,4 @@ elif menu == "📅 Besichtigungs-Kalender":
             st.success(f"✅ **{row.get('Datum / Tag', 'Unbekannt')}**: {', '.join(namen)}")
 
 # --- ⚙️ ADMIN (USER-VERWALTUNG) ---
-elif menu == "⚙️ Admin (User)":
-    st.title("User verwalten")
-    st.write("Hier kannst du Namen hinzufügen oder entfernen, die im Login-Menü erscheinen.")
-    
-    try:
-        current_user_df = load_data("User")
-    except:
-        current_user_df = pd.DataFrame({"Name": ["Anja", "Jan", "Katja", "Laurenz", "Timo"]})
-        
-    edited_user_df = st.data_editor(current_user_df, num_rows="dynamic", use_container_width=True)
-    
-    if st.button("User-Liste speichern"):
-        save_data(edited_user_df, sheet_name="User")
-        st.success("Die User-Liste wurde aktualisiert!")
+elif menu == "
