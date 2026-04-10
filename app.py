@@ -335,4 +335,3 @@ elif menu == "⚙️ Admin (User)":
     if st.button("User-Liste speichern"):
         save_data(edited_user_df, sheet_name="User")
         st.success("Die User-Liste wurde aktualisiert!")
-```
