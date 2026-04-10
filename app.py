@@ -32,22 +32,29 @@ check_password()
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(sheet_name="Immobilien"):
-    df = conn.read(worksheet=sheet_name, ttl=0)
-    return df.fillna("")
+    # UPDATE: TTL auf 600 Sekunden (10 Min) gesetzt für massive Performance-Steigerung
+    try:
+        df = conn.read(worksheet=sheet_name, ttl=600)
+        return df.fillna("")
+    except Exception as e:
+        st.error(f"Datenbank-Fehler: {e}")
+        return pd.DataFrame()
 
 def save_data(data, sheet_name="Immobilien"):
     conn.update(worksheet=sheet_name, data=data)
     st.cache_data.clear()
 
-# --- GEOCODING (Für die Karten-Punkte) ---
+# --- GEOCODING ---
 @st.cache_data
 def get_coords(address):
     try:
-        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v8")
+        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v9")
         location = geolocator.geocode(f"{address}, Österreich")
         if location:
             return location.latitude, location.longitude
-    except:
+    except Exception as e:
+        # UPDATE: Spezifisches Abfangen von API-Fehlern
+        st.warning(f"Geocoding-Warnung für '{address}': API überlastet oder Ort nicht gefunden.")
         return None, None
     return None, None
 
@@ -58,7 +65,8 @@ try:
         user_liste = sorted(user_df["Name"].replace("", pd.NA).dropna().unique().tolist())
     else:
         user_liste = ["Anja", "Jan", "Katja", "Laurenz", "Timo"]
-except:
+except Exception as e:
+    st.warning("Konnte User nicht laden. Nutze Standardliste.")
     user_liste = ["Anja", "Jan", "Katja", "Laurenz", "Timo"]
 
 if "user_name" not in st.session_state:
@@ -150,6 +158,12 @@ if menu == "🏠 Übersicht":
                                 df.at[real_index, "Distanz_Wien"] = e_km
                                 df.at[real_index, "URL"] = e_url
                                 df.at[real_index, "Bild-URL"] = e_bild
+                                
+                                # Wenn sich die Lage ändert, löschen wir die gecachten Koordinaten
+                                if df.at[real_index, "Lage"] != row.get("Lage", ""):
+                                    df.at[real_index, "lat"] = ""
+                                    df.at[real_index, "lon"] = ""
+                                    
                                 save_data(df)
                                 st.rerun()
                                 
@@ -157,12 +171,16 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                # CONTENT ROW (Bild links, Text rechts)
+                # CONTENT ROW (Bild links, Text rechts) - FESTE SPALTENBREITE
                 col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
-                        st.image(bild_url, use_container_width=True)
+                        # UPDATE: Robuster Bilder-Renderer
+                        try:
+                            st.image(bild_url, use_container_width=True)
+                        except Exception:
+                            st.error("Bild-Link defekt")
                     else:
                         st.info("Kein Bild")
                 with col_txt:
@@ -240,15 +258,22 @@ elif menu == "🗺️ Kartenansicht":
         df = df.sort_values(by="Durchschnitt", ascending=False).reset_index(drop=True)
 
         map_points = []
-        with st.spinner("Lade Standorte..."):
+        with st.spinner("Lade Karte..."):
             for i, row in df.iterrows():
                 address = row.get("Lage", "")
                 if address:
-                    lat, lon = get_coords(address)
+                    # UPDATE: Clevere API-Nutzung (liest gespeicherte Koordinaten)
+                    lat = row.get("lat", "")
+                    lon = row.get("lon", "")
+                    
+                    # Fallback für alte Einträge, die noch keine Koordinaten in der DB haben
+                    if pd.isna(lat) or lat == "":
+                        lat, lon = get_coords(address)
+                        
                     if lat and lon:
                         map_points.append({
-                            "lat": lat, 
-                            "lon": lon, 
+                            "lat": float(lat), 
+                            "lon": float(lon), 
                             "Titel": f"#{i+1}: {row.get('Titel', 'Objekt')}"
                         })
         
@@ -295,10 +320,16 @@ elif menu == "➕ Objekt hinzufügen":
         km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
         
         if st.form_submit_button("Objekt speichern"):
+            # UPDATE: Geocoding passiert jetzt nur EINMAL hier beim Speichern
+            with st.spinner("Ermittle Koordinaten für die Karte..."):
+                lat, lon = get_coords(ort)
+                
             new_row = pd.DataFrame([{
                 "Titel": titel, "URL": url, "Bild-URL": bild, "Kategorie": kat,
                 "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
-                "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name
+                "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name,
+                "lat": lat if lat else "", 
+                "lon": lon if lon else ""
             }])
             save_data(pd.concat([df, new_row], ignore_index=True))
             st.success("Erfolgreich hinzugefügt!")
@@ -312,17 +343,17 @@ elif menu == "📅 Besichtigungs-Kalender":
         df_cal = load_data("Kalender")
         if df_cal.empty:
             raise ValueError("Leere Tabelle")
-    except:
+    except Exception:
         # Initialer Aufbau, wenn die Tabelle leer ist
         init_data = {"Terminvorschlag": ["Samstag 10:00", "Sonntag 14:00"]}
         for user in user_liste:
-            init_data[user] = [False, False] # Startet mit leeren Checkboxen
+            init_data[user] = [False, False]
         df_cal = pd.DataFrame(init_data)
         
     # Sicherstellen, dass alle aktuellen User Spalten haben
     for user in user_liste:
         if user not in df_cal.columns:
-            df_cal[user] = False # Neue Spalte mit False auffüllen
+            df_cal[user] = False
             
     # Konvertierung der User-Spalten in Booleans (damit Checkboxen entstehen)
     for user in user_liste:
@@ -357,7 +388,7 @@ elif menu == "📅 Besichtigungs-Kalender":
             })
             
     if gute_termine:
-        # Sortiert nach der Anzahl der Zusagen (beste Termine zuerst)
+        # Sortiert nach der Anzahl der Zusagen
         gute_termine_sortiert = sorted(gute_termine, key=lambda x: x["anzahl"], reverse=True)
         for t in gute_termine_sortiert:
             st.success(f"✅ **{t['termin']}**: {t['anzahl']} Zusagen ({t['wer']})")
@@ -371,7 +402,7 @@ elif menu == "⚙️ Admin (User)":
     
     try:
         current_user_df = load_data("User")
-    except:
+    except Exception:
         current_user_df = pd.DataFrame({"Name": ["Anja", "Jan", "Katja", "Laurenz", "Timo"]})
         
     edited_user_df = st.data_editor(current_user_df, num_rows="dynamic", use_container_width=True)
