@@ -68,7 +68,7 @@ if menu == "🏠 Übersicht":
         for index, row in display_df.iterrows():
             with st.container(border=True):
                 # HIER IST DER FIX: MUSS in der Klammer stehen!
-                col_img, col_txt = st.columns()
+                col_img, col_txt = st.columns(2)
                 
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
