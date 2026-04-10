@@ -91,7 +91,7 @@ if menu == "🏠 Übersicht":
             df["Durchschnitt"] = 0
 
         # LAYOUT-ANPASSUNG: Dropdowns nebeneinander
-        col_filter, col_sort = st.columns()
+        col_filter, col_sort = st.columns(2)
         
         with col_filter:
             kat = st.selectbox("Kategorie filtern:", ["Alle", "Haus", "Grundstück"])
