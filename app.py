@@ -37,6 +37,18 @@ def save_data(data, sheet_name="Immobilien"):
     conn.update(worksheet=sheet_name, data=data)
     st.cache_data.clear()
 
+# --- GEOCODING (Nur für die Karten-Punkte) ---
+@st.cache_data
+def get_coords(address):
+    try:
+        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v6")
+        location = geolocator.geocode(f"{address}, Österreich")
+        if location:
+            return location.latitude, location.longitude
+    except:
+        return None, None
+    return None, None
+
 # --- DYNAMISCHE USER-LISTE LADEN ---
 try:
     user_df = load_data("User")
@@ -57,18 +69,6 @@ if "user_name" not in st.session_state:
             st.rerun()
     st.stop()
 
-# --- GEOCODING (Für die Karte) ---
-@st.cache_data
-def get_coords(address):
-    try:
-        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v4")
-        location = geolocator.geocode(f"{address}, Österreich")
-        if location:
-            return location.latitude, location.longitude
-    except:
-        return None, None
-    return None, None
-
 # --- NAVIGATION ---
 menu = st.sidebar.radio("Menü", ["🏠 Übersicht", "🗺️ Kartenansicht", "➕ Objekt hinzufügen", "📅 Besichtigungs-Kalender", "⚙️ Admin (User)"])
 
@@ -80,7 +80,7 @@ if menu == "🏠 Übersicht":
     df = load_data("Immobilien")
     
     if df is not None and not df.empty:
-        # Durchschnitts-Berechnung (Multi-User)
+        # Durchschnitts-Berechnung
         score_cols = [col for col in df.columns if col.startswith("Score_")]
         if score_cols:
             df[score_cols] = df[score_cols].replace("", pd.NA) 
@@ -89,15 +89,39 @@ if menu == "🏠 Übersicht":
         else:
             df["Durchschnitt"] = 0
 
-        df = df.sort_values(by="Durchschnitt", ascending=False)
+        # SORTIER-MENÜ
+        sort_wahl = st.sidebar.selectbox(
+            "Liste sortieren nach:", 
+            ["🔥 Beste Bewertung", "💰 Günstigster Preis", "🚗 Kürzeste Fahrt nach Wien"]
+        )
+        
+        if sort_wahl == "🔥 Beste Bewertung":
+            df = df.sort_values(by="Durchschnitt", ascending=False)
+        elif sort_wahl == "💰 Günstigster Preis":
+            # Wir sorgen dafür, dass leere Preise nicht oben landen
+            df["Kaufpreis"] = pd.to_numeric(df["Kaufpreis"], errors='coerce').fillna(999999999)
+            df = df.sort_values(by="Kaufpreis", ascending=True)
+            df["Kaufpreis"] = df["Kaufpreis"].replace(999999999, 0)
+        elif sort_wahl == "🚗 Kürzeste Fahrt nach Wien":
+            df["Distanz_Wien"] = pd.to_numeric(df["Distanz_Wien"], errors='coerce').fillna(999)
+            df = df.sort_values(by="Distanz_Wien", ascending=True)
 
         kat = st.selectbox("Kategorie filtern", ["Alle", "Haus", "Grundstück"])
         display_df = df.copy()
         if kat != "Alle":
             display_df = display_df[display_df["Kategorie"] == kat]
 
-        for index, row in display_df.iterrows():
+        # Reset Index, damit die Nummern 1, 2, 3 sauber durchlaufen
+        display_df = display_df.reset_index(drop=False)
+
+        for i, row in display_df.iterrows():
+            # Die echte Zeilennummer im Google Sheet brauchen wir fürs Speichern
+            real_index = row['index'] 
+            
             with st.container(border=True):
+                # Die Kartennummer (#1, #2) wird im Titel angezeigt
+                st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
+                
                 col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
@@ -106,13 +130,11 @@ if menu == "🏠 Übersicht":
                     else:
                         st.info("Kein Bild")
                 with col_txt:
-                    st.subheader(row.get("Titel", "Objekt"))
                     p = float(row.get('Kaufpreis', 0) or 0)
                     preis_form = f"{int(p):,}".replace(",", ".") + " €"
                     
-                    # WIEDER DA: Alle wichtigen Objekt-Infos!
                     st.write(f"**Preis:** {preis_form} | **Lage:** {row.get('Lage', '')}")
-                    st.write(f"**Entfernung Wien:** {row.get('Distanz_Wien', 0)} km")
+                    st.write(f"**Fahrstrecke Wien:** {row.get('Distanz_Wien', 0)} km")
                     st.write(f"**Wohnfläche:** {row.get('Wohnfläche', 0)} m² | **Grundfläche:** {row.get('Grundfläche', 0)} m²")
                     
                     ds = row.get("Durchschnitt", 0)
@@ -124,7 +146,6 @@ if menu == "🏠 Übersicht":
                     st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
                     
                     with st.expander("💬 Bewertungen & Kommentare"):
-                        # Gruppen-Chat anzeigen
                         comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
                         hat_kommentare = False
                         for c_col in comm_cols:
@@ -137,71 +158,81 @@ if menu == "🏠 Übersicht":
                         
                         st.divider()
                         
-                        # FIX: Robuster Slider für die eigene Note
                         mein_score_col = f"Score_{st.session_state.user_name}"
                         mein_comm_col = f"Kommentar_{st.session_state.user_name}"
                         
-                        # Sicheres Auslesen des Scores (verhindert den Absturz bei leeren Zellen)
                         raw_score = row.get(mein_score_col, 3)
-                        if pd.isna(raw_score) or raw_score == "":
-                            safe_score = 3
-                        else:
-                            safe_score = int(float(raw_score))
+                        safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                             
-                        new_score = st.slider("Deine Präferenz (1-5)", 1, 5, safe_score, key=f"s_{index}")
-                        new_comm = st.text_area("Dein Kommentar", str(row.get(mein_comm_col, "")).replace("nan", ""), key=f"c_{index}")
+                        new_score = st.slider("Deine Präferenz (1-5)", 1, 5, safe_score, key=f"s_{real_index}")
+                        new_comm = st.text_area("Dein Kommentar", str(row.get(mein_comm_col, "")).replace("nan", ""), key=f"c_{real_index}")
                         
-                        if st.button("Speichern", key=f"btn_{index}"):
-                            df.at[index, mein_score_col] = new_score
-                            df.at[index, mein_comm_col] = new_comm
+                        if st.button("Speichern", key=f"btn_{real_index}"):
+                            df.at[real_index, mein_score_col] = new_score
+                            df.at[real_index, mein_comm_col] = new_comm
                             save_data(df)
                             st.rerun()
 
                     with st.expander("✏️ Bearbeiten / Löschen"):
-                        with st.form(f"edit_{index}"):
+                        with st.form(f"edit_{real_index}"):
                             e_titel = st.text_input("Titel", row.get("Titel", ""))
                             e_preis = st.number_input("Preis (€)", value=p)
                             e_w_f = st.number_input("Wohnfläche", value=float(row.get("Wohnfläche", 0) or 0))
                             e_g_f = st.number_input("Grundfläche", value=float(row.get("Grundfläche", 0) or 0))
+                            e_km = st.number_input("Km nach Wien", value=float(row.get("Distanz_Wien", 0) or 0))
                             e_url = st.text_input("Anzeigen-Link", row.get("URL", ""))
                             e_bild = st.text_input("Bild-URL", row.get("Bild-URL", ""))
                             
                             if st.form_submit_button("Änderungen speichern"):
-                                df.at[index, "Titel"] = e_titel
-                                df.at[index, "Kaufpreis"] = e_preis
-                                df.at[index, "Wohnfläche"] = e_w_f
-                                df.at[index, "Grundfläche"] = e_g_f
-                                df.at[index, "URL"] = e_url
-                                df.at[index, "Bild-URL"] = e_bild
+                                df.at[real_index, "Titel"] = e_titel
+                                df.at[real_index, "Kaufpreis"] = e_preis
+                                df.at[real_index, "Wohnfläche"] = e_w_f
+                                df.at[real_index, "Grundfläche"] = e_g_f
+                                df.at[real_index, "Distanz_Wien"] = e_km
+                                df.at[real_index, "URL"] = e_url
+                                df.at[real_index, "Bild-URL"] = e_bild
                                 save_data(df)
                                 st.rerun()
                                 
-                        if st.button("🗑️ Objekt unwiderruflich löschen", key=f"del_{index}"):
-                            save_data(df.drop(index))
+                        if st.button("🗑️ Objekt unwiderruflich löschen", key=f"del_{real_index}"):
+                            save_data(df.drop(real_index))
                             st.rerun()
                     
                     if str(row.get("URL", "")).startswith("http"):
                         st.link_button("🔗 Anzeige öffnen", row["URL"])
 
-# --- 🗺️ KARTENANSICHT (WIEDER DA!) ---
+# --- 🗺️ KARTENANSICHT (Mit Nummern-Zuordnung) ---
 elif menu == "🗺️ Kartenansicht":
     st.title("Wo liegen die Objekte? 🗺️")
+    st.write("Die Nummern (#1, #2) entsprechen der aktuellen Reihenfolge in der Übersicht!")
+    
     df = load_data("Immobilien")
     
     if not df.empty:
+        # Wir müssen die gleiche Sortierung wie in der Übersicht anwenden, 
+        # damit die Nummern auf der Karte mit der Liste übereinstimmen.
+        s_cols = [col for col in df.columns if col.startswith("Score_")]
+        if s_cols:
+            df[s_cols] = df[s_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
+            df["Durchschnitt"] = df[s_cols].mean(axis=1).fillna(0)
+        else:
+            df["Durchschnitt"] = 0
+            
+        df = df.sort_values(by="Durchschnitt", ascending=False).reset_index(drop=True)
+
         map_points = []
         with st.spinner("Lade Standorte..."):
-            for idx, row in df.iterrows():
+            for i, row in df.iterrows():
                 address = row.get("Lage", "")
                 if address:
                     lat, lon = get_coords(address)
                     if lat and lon:
-                        map_points.append({"lat": lat, "lon": lon, "Titel": row.get("Titel", "Objekt")})
+                        # Die Nummer wird in den Titel der Stecknadel geschrieben
+                        map_points.append({"lat": lat, "lon": lon, "Titel": f"#{i+1}: {row.get('Titel', 'Objekt')}"})
         
         if map_points:
-            # Zeigt die rote-Punkt Karte an
             st.map(pd.DataFrame(map_points))
-            st.write("### Liste der Standorte")
+            st.write("### Liste der Standorte auf der Karte")
             st.dataframe(pd.DataFrame(map_points)[["Titel", "lat", "lon"]], use_container_width=True)
         else:
             st.warning("Keine gültigen Standorte in der Spalte 'Lage' gefunden.")
@@ -221,7 +252,9 @@ elif menu == "➕ Objekt hinzufügen":
         w_f = st.number_input("Wohnfläche (m²)", step=1)
         g_f = st.number_input("Grundfläche (m²)", step=10)
         ort = st.text_input("Ort / PLZ")
-        km = st.number_input("Km nach Wien", step=1)
+        
+        # DAS MANUELLE FELD IST ZURÜCK
+        km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
         
         if st.form_submit_button("Objekt speichern"):
             new_row = pd.DataFrame([{
@@ -268,3 +301,4 @@ elif menu == "⚙️ Admin (User)":
     
     if st.button("User-Liste speichern"):
         save_data(edited_user_df, sheet_name="User")
+        st.success("Die User-Liste wurde aktualisiert!")
