@@ -2,6 +2,8 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from geopy.geocoders import Nominatim
+import folium
+from streamlit_folium import st_folium
 
 # --- CONFIG & LOGIN ---
 st.set_page_config(page_title="Raus ins Haus", layout="wide")
@@ -37,11 +39,11 @@ def save_data(data, sheet_name="Immobilien"):
     conn.update(worksheet=sheet_name, data=data)
     st.cache_data.clear()
 
-# --- GEOCODING (Nur für die Karten-Punkte) ---
+# --- GEOCODING (Für die Karten-Punkte) ---
 @st.cache_data
 def get_coords(address):
     try:
-        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v6")
+        geolocator = Nominatim(user_agent="raus_ins_haus_finder_v7")
         location = geolocator.geocode(f"{address}, Österreich")
         if location:
             return location.latitude, location.longitude
@@ -83,22 +85,29 @@ if menu == "🏠 Übersicht":
         # Durchschnitts-Berechnung
         score_cols = [col for col in df.columns if col.startswith("Score_")]
         if score_cols:
-            df[score_cols] = df[score_cols].replace("", pd.NA) 
-            df[score_cols] = df[score_cols].apply(pd.to_numeric, errors='coerce')
+            df[score_cols] = df[score_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
             df["Durchschnitt"] = df[score_cols].mean(axis=1).fillna(0)
         else:
             df["Durchschnitt"] = 0
 
-        # SORTIER-MENÜ
-        sort_wahl = st.sidebar.selectbox(
-            "Liste sortieren nach:", 
-            ["🔥 Beste Bewertung", "💰 Günstigster Preis", "🚗 Kürzeste Fahrt nach Wien"]
-        )
+        # LAYOUT-ANPASSUNG: Dropdowns nebeneinander
+        col_filter, col_sort = st.columns(2)
         
+        with col_filter:
+            kat = st.selectbox("Kategorie filtern:", ["Alle", "Haus", "Grundstück"])
+            
+        with col_sort:
+            sort_wahl = st.selectbox(
+                "Liste sortieren nach:", 
+                ["🔥 Beste Bewertung", "💰 Günstigster Preis", "🚗 Kürzeste Fahrt nach Wien"]
+            )
+        
+        st.divider() # Eine feine Linie zur optischen Trennung
+        
+        # Sortierungs-Logik
         if sort_wahl == "🔥 Beste Bewertung":
             df = df.sort_values(by="Durchschnitt", ascending=False)
         elif sort_wahl == "💰 Günstigster Preis":
-            # Wir sorgen dafür, dass leere Preise nicht oben landen
             df["Kaufpreis"] = pd.to_numeric(df["Kaufpreis"], errors='coerce').fillna(999999999)
             df = df.sort_values(by="Kaufpreis", ascending=True)
             df["Kaufpreis"] = df["Kaufpreis"].replace(999999999, 0)
@@ -106,23 +115,19 @@ if menu == "🏠 Übersicht":
             df["Distanz_Wien"] = pd.to_numeric(df["Distanz_Wien"], errors='coerce').fillna(999)
             df = df.sort_values(by="Distanz_Wien", ascending=True)
 
-        kat = st.selectbox("Kategorie filtern", ["Alle", "Haus", "Grundstück"])
         display_df = df.copy()
         if kat != "Alle":
             display_df = display_df[display_df["Kategorie"] == kat]
 
-        # Reset Index, damit die Nummern 1, 2, 3 sauber durchlaufen
         display_df = display_df.reset_index(drop=False)
 
         for i, row in display_df.iterrows():
-            # Die echte Zeilennummer im Google Sheet brauchen wir fürs Speichern
             real_index = row['index'] 
             
             with st.container(border=True):
-                # Die Kartennummer (#1, #2) wird im Titel angezeigt
                 st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
                 
-                col_img, col_txt = st.columns(2)
+                col_img, col_txt = st.columns()
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
@@ -201,16 +206,15 @@ if menu == "🏠 Übersicht":
                     if str(row.get("URL", "")).startswith("http"):
                         st.link_button("🔗 Anzeige öffnen", row["URL"])
 
-# --- 🗺️ KARTENANSICHT (Mit Nummern-Zuordnung) ---
+# --- 🗺️ KARTENANSICHT (Mit schicken Stecknadeln) ---
 elif menu == "🗺️ Kartenansicht":
     st.title("Wo liegen die Objekte? 🗺️")
-    st.write("Die Nummern (#1, #2) entsprechen der aktuellen Reihenfolge in der Übersicht!")
+    st.write("Fahre mit der Maus über eine blaue Nadel, um zu sehen, um welches Haus es sich handelt!")
     
     df = load_data("Immobilien")
     
     if not df.empty:
-        # Wir müssen die gleiche Sortierung wie in der Übersicht anwenden, 
-        # damit die Nummern auf der Karte mit der Liste übereinstimmen.
+        # Gleiche Sortierung anwenden, damit Nummern stimmen
         s_cols = [col for col in df.columns if col.startswith("Score_")]
         if s_cols:
             df[s_cols] = df[s_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
@@ -227,11 +231,30 @@ elif menu == "🗺️ Kartenansicht":
                 if address:
                     lat, lon = get_coords(address)
                     if lat and lon:
-                        # Die Nummer wird in den Titel der Stecknadel geschrieben
-                        map_points.append({"lat": lat, "lon": lon, "Titel": f"#{i+1}: {row.get('Titel', 'Objekt')}"})
+                        map_points.append({
+                            "lat": lat, 
+                            "lon": lon, 
+                            "Titel": f"#{i+1}: {row.get('Titel', 'Objekt')}"
+                        })
         
         if map_points:
-            st.map(pd.DataFrame(map_points))
+            # Karte zentrieren
+            avg_lat = sum(p["lat"] for p in map_points) / len(map_points)
+            avg_lon = sum(p["lon"] for p in map_points) / len(map_points)
+            
+            m = folium.Map(location=[avg_lat, avg_lon], zoom_start=9)
+            
+            # Stecknadeln setzen
+            for p in map_points:
+                folium.Marker(
+                    location=[p["lat"], p["lon"]],
+                    tooltip=p["Titel"], # Das zeigt den Namen beim Drüberfahren an!
+                    popup=p["Titel"]    # Das zeigt den Namen beim Klicken an!
+                ).add_to(m)
+            
+            # Karte einbetten
+            st_folium(m, width=800, height=500, returned_objects=[])
+            
             st.write("### Liste der Standorte auf der Karte")
             st.dataframe(pd.DataFrame(map_points)[["Titel", "lat", "lon"]], use_container_width=True)
         else:
@@ -252,8 +275,6 @@ elif menu == "➕ Objekt hinzufügen":
         w_f = st.number_input("Wohnfläche (m²)", step=1)
         g_f = st.number_input("Grundfläche (m²)", step=10)
         ort = st.text_input("Ort / PLZ")
-        
-        # DAS MANUELLE FELD IST ZURÜCK
         km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
         
         if st.form_submit_button("Objekt speichern"):
