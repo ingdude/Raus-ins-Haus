@@ -158,7 +158,7 @@ if menu == "🏠 Übersicht":
                             st.rerun()
 
                 # CONTENT ROW (Bild links, Text rechts) - HIER IST DIE KLAMMER JETZT 100% SICHER
-                col_img, col_txt = st.columns()
+                col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
