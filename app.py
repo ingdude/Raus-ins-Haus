@@ -1,3 +1,16 @@
+Okay, tief durchatmen! Das ist der Fluch der Technik: Wenn man einmal zwischen verschiedenen Versionen hin- und herkopiert, zieht man sich oft den alten Fehler wieder mit rein. 
+
+In dem Code, den du mir gerade geschickt hast, klafft in Zeile 166 nämlich **schon wieder** genau diese Lücke: `col_img, col_txt = st.columns()`. Das ist der Grund, warum es sofort wieder kracht. 
+
+Wir machen jetzt einen echten "Hard Reset". Ich habe deinen Code genommen, ihn von oben bis unten durchgecheckt, die Klammer bei den Spalten fest vernagelt (``) und sichergestellt, dass keine unsichtbaren Formatierungsfehler (die beim Copy-Paste oft entstehen) mehr drin sind.
+
+**Bitte mach Folgendes:**
+1. Geh in deine `app.py` auf GitHub.
+2. Drücke `Strg + A` (bzw. `Cmd + A` auf dem Mac), um **wirklich alles** zu markieren.
+3. Drücke `Entf` (Löschen), sodass die Datei komplett leer ist.
+4. Kopiere diesen neuen Block und füge ihn ein:
+
+```python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -276,4 +289,63 @@ elif menu == "🗺️ Kartenansicht":
 
 # --- ➕ OBJEKT HINZUFÜGEN ---
 elif menu == "➕ Objekt hinzufügen":
-    st.title("Neues
+    st.title("Neues Objekt erfassen")
+    df = load_data("Immobilien")
+    with st.form("add_form", clear_on_submit=True):
+        titel = st.text_input("Titel (z.B. Haus am See)")
+        url = st.text_input("Anzeigen-Link (URL)")
+        bild = st.text_input("Bild-URL (Rechtsklick auf Bild -> Adresse kopieren)")
+        kat = st.selectbox("Typ", ["Haus", "Grundstück"])
+        preis = st.number_input("Preis (€)", step=1000)
+        w_f = st.number_input("Wohnfläche (m²)", step=1)
+        g_f = st.number_input("Grundfläche (m²)", step=10)
+        ort = st.text_input("Ort / PLZ")
+        km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
+        
+        if st.form_submit_button("Objekt speichern"):
+            new_row = pd.DataFrame([{
+                "Titel": titel, "URL": url, "Bild-URL": bild, "Kategorie": kat,
+                "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
+                "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name
+            }])
+            save_data(pd.concat([df, new_row], ignore_index=True))
+            st.success("Erfolgreich hinzugefügt!")
+
+# --- 📅 KALENDER ---
+elif menu == "📅 Besichtigungs-Kalender":
+    st.title("Besichtigungs-Planer")
+    try:
+        df_cal = load_data("Kalender")
+    except:
+        df_cal = pd.DataFrame([{"Datum / Tag": "Samstag Vormittag", "Wer kann?": "", "Anmerkung": ""}])
+        
+    edited_df = st.data_editor(df_cal, num_rows="dynamic", use_container_width=True)
+    
+    if st.button("Kalender speichern"):
+        save_data(edited_df, sheet_name="Kalender")
+        st.success("Gespeichert!")
+        st.rerun()
+
+    st.divider()
+    st.subheader("🔥 Top Termine (>= 2 Personen)")
+    for idx, row in edited_df.iterrows():
+        namen = [n.strip() for n in str(row.get("Wer kann?", "")).split(",") if n.strip()]
+        if len(namen) >= 2:
+            st.success(f"✅ **{row.get('Datum / Tag', 'Unbekannt')}**: {', '.join(namen)}")
+
+# --- ⚙️ ADMIN (USER-VERWALTUNG) ---
+elif menu == "⚙️ Admin (User)":
+    st.title("User verwalten")
+    st.write("Hier kannst du Namen hinzufügen oder entfernen, die im Login-Menü erscheinen.")
+    
+    try:
+        current_user_df = load_data("User")
+    except:
+        current_user_df = pd.DataFrame({"Name": ["Anja", "Jan", "Katja", "Laurenz", "Timo"]})
+        
+    edited_user_df = st.data_editor(current_user_df, num_rows="dynamic", use_container_width=True)
+    
+    if st.button("User-Liste speichern"):
+        save_data(edited_user_df, sheet_name="User")
+        st.success("Die User-Liste wurde aktualisiert!")
+```
