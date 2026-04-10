@@ -3,9 +3,9 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
 # --- CONFIG & LOGIN ---
-st.set_page_config(page_title="Immo-Finder Gruppe", layout="wide")
+st.set_page_config(page_title="Raus ins Haus", layout="wide")
 
-PASSWORD = "waldsauna" # Hier wieder euer Passwort eintragen
+PASSWORD = "waldsauna" # Hier euer Passwort eintragen
 
 def check_password():
     if "authenticated" not in st.session_state:
@@ -33,9 +33,7 @@ if "user_name" not in st.session_state:
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(sheet_name="Immobilien"):
-    # Lädt die Daten frisch aus Google Sheets
     df = conn.read(worksheet=sheet_name, ttl=0)
-    # Füllt leere Zellen (NaN) mit leeren Strings, um Fehler zu vermeiden
     return df.fillna("")
 
 def save_data(data, sheet_name="Immobilien"):
@@ -47,16 +45,16 @@ menu = st.sidebar.radio("Menü", ["🏠 Übersicht", "➕ Objekt hinzufügen", "
 
 # --- 🏠 ÜBERSICHT ---
 if menu == "🏠 Übersicht":
-    st.title(f"Immo-Dashboard von {st.session_state.user_name} 🏠")
+    # FIX 5: Neuer Titel
+    st.title("Raus ins Haus 🏠")
+    st.caption(f"Eingeloggt als: {st.session_state.user_name}")
     
     df = load_data("Immobilien")
     
     if df is not None and not df.empty:
-        # Sicherstellen, dass Score und Kommentar existieren
         if "Score" not in df.columns: df["Score"] = 3
         if "Kommentar" not in df.columns: df["Kommentar"] = ""
 
-        # Konvertiere Score in Zahlen für die Sortierung
         df["Score"] = pd.to_numeric(df["Score"], errors='coerce').fillna(3)
         df = df.sort_values(by="Score", ascending=False)
 
@@ -67,8 +65,7 @@ if menu == "🏠 Übersicht":
 
         for index, row in display_df.iterrows():
             with st.container(border=True):
-                # HIER IST DER FIX: MUSS in der Klammer stehen!
-                col_img, col_txt = st.columns(2)
+                col_img, col_txt = st.columns()
                 
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
@@ -79,13 +76,20 @@ if menu == "🏠 Übersicht":
                 
                 with col_txt:
                     st.subheader(row.get("Titel", "Unbenanntes Objekt"))
-                    st.write(f"**Preis:** {row.get('Kaufpreis', 0)} € | **Lage:** {row.get('Lage', '')}")
-                    st.write(f"**Wien:** {row.get('Distanz_Wien', 0)} km | **Fläche:** {row.get('Wohnfläche', 0)}m² / {row.get('Grundfläche', 0)}m²")
                     
+                    # FIX 4: Preis-Formatierung (z.B. 439000 -> 439.000 €)
+                    roher_preis = float(row.get('Kaufpreis', 0) or 0)
+                    preis_formatiert = f"{int(roher_preis):,}".replace(",", ".") + " €"
+                    
+                    # FIX 3 & 6: Neue Beschriftungen
+                    st.write(f"**Preis:** {preis_formatiert} | **Lage:** {row.get('Lage', '')}")
+                    st.write(f"**Entfernung Wien:** {row.get('Distanz_Wien', 0)} km")
+                    st.write(f"**Wohnfläche:** {row.get('Wohnfläche', 0)} m² | **Grundfläche:** {row.get('Grundfläche', 0)} m²")
+                    
+                    # FIX 1: User-Anzeige (Greift auf die exakte Spalte 'User' zu)
                     user_val = row.get("User", "")
                     st.caption(f"Hinzugefügt von: {user_val if user_val else 'Unbekannt'}")
                     
-                    # 1. EXPANDER: Voten & Kommentieren
                     with st.expander("⭐ Bewertung & Details"):
                         new_score = st.slider("Präferenz (1=Naja, 5=Traumhaus)", 1, 5, int(row["Score"]), key=f"score_{index}")
                         new_comm = st.text_area("Kommentar", row["Kommentar"], key=f"comm_{index}")
@@ -96,11 +100,10 @@ if menu == "🏠 Übersicht":
                             save_data(df)
                             st.rerun()
 
-                    # 2. EXPANDER: Editieren & Löschen
                     with st.expander("✏️ Objekt bearbeiten / löschen"):
                         with st.form(key=f"edit_form_{index}"):
                             e_titel = st.text_input("Titel", row.get("Titel", ""))
-                            e_preis = st.number_input("Preis (€)", value=float(row.get("Kaufpreis", 0) or 0), step=1000.0)
+                            e_preis = st.number_input("Preis (€)", value=roher_preis, step=1000.0)
                             e_w_f = st.number_input("Wohnfläche", value=float(row.get("Wohnfläche", 0) or 0))
                             e_g_f = st.number_input("Grundfläche", value=float(row.get("Grundfläche", 0) or 0))
                             e_url = st.text_input("Anzeigen-Link", row.get("URL", ""))
@@ -119,13 +122,11 @@ if menu == "🏠 Übersicht":
                                     st.success("Aktualisiert!")
                                     st.rerun()
                                     
-                        # Löschen Button (außerhalb der Form)
                         if st.button("🗑️ Komplettes Objekt löschen", key=f"del_{index}"):
                             updated_df = df.drop(index)
                             save_data(updated_df)
                             st.rerun()
                             
-                    # Link zur Originalanzeige
                     if str(row.get("URL", "")).startswith("http"):
                         st.link_button("🔗 Anzeige bei Willhaben/ImmoScout öffnen", row.get("URL", ""))
 
@@ -161,23 +162,43 @@ elif menu == "➕ Objekt hinzufügen":
 # --- 📅 KALENDER ---
 elif menu == "📅 Besichtigungs-Kalender":
     st.title("Wann habt ihr Zeit?")
-    st.write("Einfach in die Tabelle klicken, eintragen und speichern.")
+    st.write("Einfach in die Tabelle klicken, eintragen und speichern. (Tipp: Namen mit Komma trennen!)")
     
     try:
         df_cal = load_data("Kalender")
         if df_cal.empty:
             raise ValueError("Leere Tabelle")
     except:
-        # Falls die Tabelle leer ist oder noch nicht existiert, bauen wir eine Vorlage
         df_cal = pd.DataFrame([
             {"Datum / Tag": "Samstag Vormittag", "Wer kann?": "", "Anmerkung": ""},
             {"Datum / Tag": "Samstag Nachmittag", "Wer kann?": "", "Anmerkung": ""},
             {"Datum / Tag": "Sonntag", "Wer kann?": "", "Anmerkung": ""}
         ])
     
-    # Hier nutzen wir den Editor. num_rows="dynamic" erlaubt das Hinzufügen neuer Zeilen!
     edited_df = st.data_editor(df_cal, num_rows="dynamic", use_container_width=True, height=300)
     
     if st.button("💾 Kalender in Google Sheets speichern"):
         save_data(edited_df, sheet_name="Kalender")
         st.success("Kalender wurde aktualisiert!")
+        st.rerun()
+
+    # FIX 2: Highlight-Funktion für überlappende Termine
+    st.divider()
+    st.subheader("🔥 Top Termine")
+    st.write("Hier erscheinen Termine automatisch grün, sobald mind. 2 Personen Zeit haben.")
+    
+    gute_termine = []
+    # Prüfe alle Zeilen im Kalender
+    for idx, row in edited_df.iterrows():
+        namen_string = str(row.get("Wer kann?", ""))
+        # Zählt die Namen anhand der Kommas (z.B. "Laurenz, Max" = 2)
+        namen_liste = [name.strip() for name in namen_string.split(",") if name.strip()]
+        
+        if len(namen_liste) >= 2:
+            gute_termine.append(f"✅ **{row.get('Datum / Tag', 'Unbekannt')}**: {', '.join(namen_liste)}")
+            
+    if gute_termine:
+        for termin in gute_termine:
+            st.success(termin)
+    else:
+        st.info("Aktuell gibt es noch keine Termine, an denen mehrere Personen gleichzeitig können.")
