@@ -327,4 +327,17 @@ elif menu == "📅 Besichtigungs-Kalender":
             st.success(f"✅ **{row.get('Datum / Tag', 'Unbekannt')}**: {', '.join(namen)}")
 
 # --- ⚙️ ADMIN (USER-VERWALTUNG) ---
-elif menu == "
+elif menu == "⚙️ Admin (User)":
+    st.title("User verwalten")
+    st.write("Hier kannst du Namen hinzufügen oder entfernen, die im Login-Menü erscheinen.")
+    
+    try:
+        current_user_df = load_data("User")
+    except:
+        current_user_df = pd.DataFrame({"Name": ["Anja", "Jan", "Katja", "Laurenz", "Timo"]})
+        
+    edited_user_df = st.data_editor(current_user_df, num_rows="dynamic", use_container_width=True)
+    
+    if st.button("User-Liste speichern"):
+        save_data(edited_user_df, sheet_name="User")
+        st.success("Die User-Liste wurde aktualisiert!")
