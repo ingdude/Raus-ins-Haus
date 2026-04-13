@@ -133,16 +133,21 @@ if menu == "🏠 Übersicht":
             real_index = row['index'] 
             
             with st.container(border=True):
-                # Titel breit, Score und Menü ganz rechts (genau wie gezeichnet)
-                c_title, c_score, c_menu = st.columns([0.80, 0.15, 0.05])
+                # Titel breit, Score und Menü ganz rechts
+                # vertical_alignment="center" sorgt für die mittige Höhe
+                c_title, c_score, c_menu = st.columns([0.75, 0.20, 0.05], vertical_alignment="center")
+                
                 with c_title:
                     st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
+                    
                 with c_score:
                     ds = row.get("Durchschnitt", 0)
+                    # Mit HTML machen wir die Schrift größer (h2) und schieben sie an den rechten Rand
                     if ds > 0:
-                        st.markdown(f"### 🔥 {round(ds, 1)}")
+                        st.markdown(f"<h2 style='text-align: right; margin: 0;'>🔥 {round(ds, 1)}</h2>", unsafe_allow_html=True)
                     else:
-                        st.markdown("### ⚪ -")
+                        st.markdown("<h2 style='text-align: right; margin: 0;'>⚪ -</h2>", unsafe_allow_html=True)
+                        
                 with c_menu:
                     with st.popover("⋮"):
                         st.markdown("**✏️ Bearbeiten / Löschen**")
@@ -216,7 +221,7 @@ if menu == "🏠 Übersicht":
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
                         with st.popover("⭐️ Bewerten", use_container_width=True):
-                            new_score = st.selectbox("Deine Note", options= [1, 2, 3, 4, 5], index=safe_score - 1, key=f"s_{real_index}")
+                            new_score = st.selectbox("Deine Note", options=, index=safe_score - 1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
