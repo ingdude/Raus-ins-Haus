@@ -133,20 +133,23 @@ if menu == "🏠 Übersicht":
             real_index = row['index'] 
             
             with st.container(border=True):
-                # Titel breit, Score und Menü ganz rechts
-                # vertical_alignment="center" sorgt für die mittige Höhe
-                c_title, c_score, c_menu = st.columns([0.75, 0.20, 0.05], vertical_alignment="center")
+                # Nur noch 2 Spalten: Links Titel+Score, Rechts Menü
+                c_title_score, c_menu = st.columns([0.95, 0.05], vertical_alignment="center")
                 
-                with c_title:
-                    st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
-                    
-                with c_score:
+                with c_title_score:
                     ds = row.get("Durchschnitt", 0)
-                    # Mit HTML machen wir die Schrift größer (h2) und schieben sie an den rechten Rand
+                    
+                    # Wir bauen den String zusammen. 
+                    # Ein paar Leerzeichen (&nbsp;) sorgen für Abstand zwischen Titel und Score.
                     if ds > 0:
-                        st.markdown(f"<h2 style='text-align: right; margin: 0;'>🔥 {round(ds, 1)}</h2>", unsafe_allow_html=True)
+                        score_str = f"&nbsp;&nbsp;&nbsp; <span style='color: #ffaa00;'>🔥 {round(ds, 1)}</span>"
                     else:
-                        st.markdown("<h2 style='text-align: right; margin: 0;'>⚪ -</h2>", unsafe_allow_html=True)
+                        score_str = "&nbsp;&nbsp;&nbsp; ⚪ -"
+                        
+                    titel_text = f"### #{i+1} | {row.get('Titel', 'Objekt')}"
+                    
+                    # Alles in einer Zeile ausgeben
+                    st.markdown(f"{titel_text} {score_str}", unsafe_allow_html=True)
                         
                 with c_menu:
                     with st.popover("⋮"):
