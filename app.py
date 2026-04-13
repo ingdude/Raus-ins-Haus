@@ -36,7 +36,13 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data(sheet_name="Immobilien"):
     try:
         df = conn.read(worksheet=sheet_name, ttl=600)
-        return df.fillna("")
+        df = df.fillna("")
+        if sheet_name == "Immobilien":
+            if "Archiviert" not in df.columns:
+                df["Archiviert"] = False
+            else:
+                df["Archiviert"] = df["Archiviert"].astype(str).str.lower().map({'true': True, '1': True, 'yes': True}).fillna(False)
+        return df
     except Exception as e:
         st.error(f"Datenbank-Fehler: {e}")
         return pd.DataFrame()
@@ -80,7 +86,7 @@ if "user_name" not in st.session_state:
     st.stop()
 
 # --- NAVIGATION ---
-menu = st.sidebar.radio("Menü", ["🏠 Übersicht", "🗺️ Kartenansicht", "➕ Objekt hinzufügen", "📅 Besichtigungs-Kalender", "⚙️ Admin (User)"])
+menu = st.sidebar.radio("Menü", ["🏠 Übersicht", "🗺️ Kartenansicht", "➕ Objekt hinzufügen", "📅 Besichtigungs-Kalender", "🗃️ Archiv", "⚙️ Admin (User)"])
 
 # --- 🏠 ÜBERSICHT ---
 if menu == "🏠 Übersicht":
@@ -124,6 +130,7 @@ if menu == "🏠 Übersicht":
             df = df.sort_values(by="Distanz_Wien", ascending=True)
 
         display_df = df.copy()
+        display_df = display_df[display_df["Archiviert"] != True]
         if kat != "Alle":
             display_df = display_df[display_df["Kategorie"] == kat]
 
@@ -153,7 +160,7 @@ if menu == "🏠 Übersicht":
                         
                 with c_menu:
                     with st.popover("⋮"):
-                        st.markdown("**✏️ Bearbeiten / Löschen**")
+                        st.markdown("**✏️ Bearbeiten**")
                         with st.form(f"edit_{real_index}"):
                             e_titel = st.text_input("Titel", row.get("Titel", ""))
                             e_lage = st.text_input("Lage (Ort / PLZ)", row.get("Lage", ""))
@@ -186,6 +193,11 @@ if menu == "🏠 Übersicht":
                                 save_data(df)
                                 st.rerun()
                                 
+                        if st.button("🗄️ Objekt archivieren", key=f"arch_{real_index}"):
+                            df.at[real_index, "Archiviert"] = True
+                            save_data(df)
+                            st.rerun()
+                            
                         if st.button("🗑️ Objekt löschen", key=f"del_{real_index}"):
                             save_data(df.drop(real_index))
                             st.rerun()
@@ -279,6 +291,8 @@ elif menu == "🗺️ Kartenansicht":
     df = load_data("Immobilien")
     
     if not df.empty:
+        df = df[df["Archiviert"] != True]
+        
         s_cols = [col for col in df.columns if col.startswith("Score_")]
         if s_cols:
             df[s_cols] = df[s_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
@@ -359,10 +373,57 @@ elif menu == "➕ Objekt hinzufügen":
                 "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name,
                 "lat": lat if lat else "", 
                 "lon": lon if lon else "",
-                "Chat_Historie": "[]"
+                "Chat_Historie": "[]",
+                "Archiviert": False
             }])
             save_data(pd.concat([df, new_row], ignore_index=True))
             st.success("Erfolgreich hinzugefügt!")
+
+# --- 🗃️ ARCHIV ---
+elif menu == "🗃️ Archiv":
+    st.title("Archivierte Objekte 🗃️")
+    st.write("Hier landen alle Objekte, die du vorerst aus der Übersicht entfernt hast.")
+    
+    df = load_data("Immobilien")
+    
+    if not df.empty:
+        archiv_df = df[df["Archiviert"] == True].copy()
+        archiv_df = archiv_df.reset_index(drop=False)
+        
+        if archiv_df.empty:
+            st.info("Im Moment gibt es keine archivierten Objekte.")
+        else:
+            for i, row in archiv_df.iterrows():
+                real_index = row['index']
+                with st.container(border=True):
+                    c_title, c_menu = st.columns([0.8, 0.2], vertical_alignment="center")
+                    with c_title:
+                        st.markdown(f"### {row.get('Titel', 'Objekt')}")
+                    with c_menu:
+                        if st.button("↩️ Wiederherstellen", key=f"restore_{real_index}", use_container_width=True):
+                            df.at[real_index, "Archiviert"] = False
+                            save_data(df)
+                            st.rerun()
+                        if st.button("🗑️ Endgültig löschen", key=f"del_arch_{real_index}", use_container_width=True):
+                            save_data(df.drop(real_index))
+                            st.rerun()
+                            
+                    col_img, col_txt = st.columns(2)
+                    with col_img:
+                        bild_url = str(row.get("Bild-URL", ""))
+                        if bild_url.startswith("http"):
+                            try:
+                                st.image(bild_url, use_container_width=True)
+                            except:
+                                st.error("Bild-Link defekt")
+                        else:
+                            st.info("Kein Bild")
+                    with col_txt:
+                        p = float(row.get('Kaufpreis', 0) or 0)
+                        preis_form = f"{int(p):,}".replace(",", ".") + " €"
+                        st.write(f"**Preis:** {preis_form} | **Lage:** {row.get('Lage', '')}")
+                        if str(row.get("URL", "")).startswith("http"):
+                            st.link_button("🔗 Zum Inserat", row["URL"])
 
 # --- 📅 NEUER DOODLE-STYLE KALENDER ---
 elif menu == "📅 Besichtigungs-Kalender":
@@ -434,3 +495,4 @@ elif menu == "⚙️ Admin (User)":
     if st.button("User-Liste speichern"):
         save_data(edited_user_df, sheet_name="User")
         st.success("Die User-Liste wurde aktualisiert!")
+
