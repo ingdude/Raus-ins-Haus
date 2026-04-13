@@ -182,7 +182,7 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                col_img, col_txt = st.columns()
+                col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
