@@ -133,7 +133,7 @@ if menu == "🏠 Übersicht":
             real_index = row['index'] 
             
             with st.container(border=True):
-                # NEU: Titel, Durchschnitts-Score und Menü in einer Zeile
+                # Titel, Durchschnitts-Score und Menü in einer Zeile
                 c_title, c_score, c_menu = st.columns([0.75, 0.15, 0.1])
                 with c_title:
                     st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
@@ -203,7 +203,7 @@ if menu == "🏠 Übersicht":
                     
                     st.divider()
 
-                    # NEU: Die 3er-Werkzeugleiste (Anzeige, Bewertung, Drive)
+                    # Die 3er-Werkzeugleiste mit korrekter Klammer!
                     c_btn1, c_btn2, c_btn3 = st.columns(3)
                     
                     with c_btn1:
@@ -216,7 +216,8 @@ if menu == "🏠 Übersicht":
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
                         with st.popover("⭐️ Note vergeben", use_container_width=True):
-                            new_score = st.slider("Deine Note", 1, 5, safe_score, step=1, key=f"s_{real_index}")
+                            # UX-UPDATE: Dropdown statt Slider für saubere Bedienung!
+                            new_score = st.selectbox("Deine Note", options=, index=safe_score-1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
