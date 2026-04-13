@@ -32,7 +32,6 @@ check_password()
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(sheet_name="Immobilien"):
-    # UPDATE: TTL auf 600 Sekunden (10 Min) gesetzt für massive Performance-Steigerung
     try:
         df = conn.read(worksheet=sheet_name, ttl=600)
         return df.fillna("")
@@ -53,7 +52,6 @@ def get_coords(address):
         if location:
             return location.latitude, location.longitude
     except Exception as e:
-        # UPDATE: Spezifisches Abfangen von API-Fehlern
         st.warning(f"Geocoding-Warnung für '{address}': API überlastet oder Ort nicht gefunden.")
         return None, None
     return None, None
@@ -90,7 +88,6 @@ if menu == "🏠 Übersicht":
     df = load_data("Immobilien")
     
     if df is not None and not df.empty:
-        # Durchschnitts-Berechnung
         score_cols = [col for col in df.columns if col.startswith("Score_")]
         if score_cols:
             df[score_cols] = df[score_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
@@ -98,7 +95,6 @@ if menu == "🏠 Übersicht":
         else:
             df["Durchschnitt"] = 0
 
-        # LAYOUT-ANPASSUNG: Dropdowns nebeneinander
         col_filter, col_sort = st.columns(2)
         
         with col_filter:
@@ -112,7 +108,6 @@ if menu == "🏠 Übersicht":
         
         st.divider()
         
-        # Sortierungs-Logik
         if sort_wahl == "🔥 Beste Bewertung":
             df = df.sort_values(by="Durchschnitt", ascending=False)
         elif sort_wahl == "💰 Günstigster Preis":
@@ -133,7 +128,6 @@ if menu == "🏠 Übersicht":
             real_index = row['index'] 
             
             with st.container(border=True):
-                # TITLE ROW MIT 3-PUNKTE MENÜ
                 c_title, c_menu = st.columns([0.9, 0.1])
                 with c_title:
                     st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
@@ -142,6 +136,7 @@ if menu == "🏠 Übersicht":
                         st.markdown("**✏️ Bearbeiten / Löschen**")
                         with st.form(f"edit_{real_index}"):
                             e_titel = st.text_input("Titel", row.get("Titel", ""))
+                            e_lage = st.text_input("Lage (Ort / PLZ)", row.get("Lage", ""))
                             p_val = float(row.get('Kaufpreis', 0) or 0)
                             e_preis = st.number_input("Preis (€)", value=p_val)
                             e_w_f = st.number_input("Wohnfläche", value=float(row.get("Wohnfläche", 0) or 0))
@@ -149,6 +144,8 @@ if menu == "🏠 Übersicht":
                             e_km = st.number_input("Km nach Wien", value=float(row.get("Distanz_Wien", 0) or 0))
                             e_url = st.text_input("Anzeigen-Link", row.get("URL", ""))
                             e_bild = st.text_input("Bild-URL", row.get("Bild-URL", ""))
+                            # NEU: Drive-Link im Bearbeiten-Menü
+                            e_drive = st.text_input("Google Drive Ordner Link", row.get("Drive-Link", ""))
                             
                             if st.form_submit_button("Änderungen speichern"):
                                 df.at[real_index, "Titel"] = e_titel
@@ -158,12 +155,15 @@ if menu == "🏠 Übersicht":
                                 df.at[real_index, "Distanz_Wien"] = e_km
                                 df.at[real_index, "URL"] = e_url
                                 df.at[real_index, "Bild-URL"] = e_bild
+                                df.at[real_index, "Drive-Link"] = e_drive
                                 
-                                # Wenn sich die Lage ändert, löschen wir die gecachten Koordinaten
-                                if df.at[real_index, "Lage"] != row.get("Lage", ""):
-                                    df.at[real_index, "lat"] = ""
-                                    df.at[real_index, "lon"] = ""
-                                    
+                                alte_lage = str(row.get("Lage", ""))
+                                if e_lage != alte_lage:
+                                    neu_lat, neu_lon = get_coords(e_lage)
+                                    df.at[real_index, "lat"] = neu_lat if neu_lat else ""
+                                    df.at[real_index, "lon"] = neu_lon if neu_lon else ""
+                                    df.at[real_index, "Lage"] = e_lage
+                                
                                 save_data(df)
                                 st.rerun()
                                 
@@ -171,12 +171,10 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                # CONTENT ROW (Bild links, Text rechts) - FESTE SPALTENBREITE
                 col_img, col_txt = st.columns(2)
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
-                        # UPDATE: Robuster Bilder-Renderer
                         try:
                             st.image(bild_url, use_container_width=True)
                         except Exception:
@@ -198,12 +196,19 @@ if menu == "🏠 Übersicht":
                         st.markdown("### ⚪ Noch keine Bewertungen")
                         
                     st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
-                    if str(row.get("URL", "")).startswith("http"):
-                        st.link_button("🔗 Anzeige öffnen", row["URL"])
+                    
+                    # LINK-BUTTONS (Anzeige & Drive)
+                    c_link1, c_link2 = st.columns(2)
+                    with c_link1:
+                        if str(row.get("URL", "")).startswith("http"):
+                            st.link_button("🔗 Anzeige öffnen", row["URL"], use_container_width=True)
+                    with c_link2:
+                        drive_url = str(row.get("Drive-Link", ""))
+                        if drive_url.startswith("http"):
+                            st.link_button("📂 Dokumente & Medien", drive_url, use_container_width=True)
                         
                     st.divider()
                     
-                    # KOMMENTARE OFFEN ANZEIGEN
                     st.markdown("##### 💬 Feedback der Gruppe")
                     comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
                     hat_kommentare = False
@@ -222,14 +227,13 @@ if menu == "🏠 Übersicht":
                     if not hat_kommentare:
                         st.markdown("<div style='font-size: 0.85em; font-style: italic; margin-bottom: 10px;'>Noch keine Kommentare vorhanden.</div>", unsafe_allow_html=True)
                     
-                    # EIGENE BEWERTUNG KOMPAKT
                     mein_score_col = f"Score_{st.session_state.user_name}"
                     mein_comm_col = f"Kommentar_{st.session_state.user_name}"
                     
                     raw_score = row.get(mein_score_col, 3)
                     safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
-                    c_slide, c_text = st.columns(2)
+                    c_slide, c_text = st.columns()
                     with c_slide:
                         new_score = st.slider(f"Deine Note", 1, 5, safe_score, key=f"s_{real_index}")
                         if st.button("Speichern", key=f"btn_{real_index}", use_container_width=True):
@@ -262,11 +266,9 @@ elif menu == "🗺️ Kartenansicht":
             for i, row in df.iterrows():
                 address = row.get("Lage", "")
                 if address:
-                    # UPDATE: Clevere API-Nutzung (liest gespeicherte Koordinaten)
                     lat = row.get("lat", "")
                     lon = row.get("lon", "")
                     
-                    # Fallback für alte Einträge, die noch keine Koordinaten in der DB haben
                     if pd.isna(lat) or lat == "":
                         lat, lon = get_coords(address)
                         
@@ -312,6 +314,8 @@ elif menu == "➕ Objekt hinzufügen":
         titel = st.text_input("Titel (z.B. Haus am See)")
         url = st.text_input("Anzeigen-Link (URL)")
         bild = st.text_input("Bild-URL (Rechtsklick auf Bild -> Adresse kopieren)")
+        # NEU: Drive-Link im Hinzufügen-Menü
+        drive = st.text_input("Google Drive Ordner Link (für eigene Fotos/PDFs)")
         kat = st.selectbox("Typ", ["Haus", "Grundstück"])
         preis = st.number_input("Preis (€)", step=1000)
         w_f = st.number_input("Wohnfläche (m²)", step=1)
@@ -320,12 +324,11 @@ elif menu == "➕ Objekt hinzufügen":
         km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
         
         if st.form_submit_button("Objekt speichern"):
-            # UPDATE: Geocoding passiert jetzt nur EINMAL hier beim Speichern
             with st.spinner("Ermittle Koordinaten für die Karte..."):
                 lat, lon = get_coords(ort)
                 
             new_row = pd.DataFrame([{
-                "Titel": titel, "URL": url, "Bild-URL": bild, "Kategorie": kat,
+                "Titel": titel, "URL": url, "Bild-URL": bild, "Drive-Link": drive, "Kategorie": kat,
                 "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
                 "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name,
                 "lat": lat if lat else "", 
@@ -344,22 +347,18 @@ elif menu == "📅 Besichtigungs-Kalender":
         if df_cal.empty:
             raise ValueError("Leere Tabelle")
     except Exception:
-        # Initialer Aufbau, wenn die Tabelle leer ist
         init_data = {"Terminvorschlag": ["Samstag 10:00", "Sonntag 14:00"]}
         for user in user_liste:
             init_data[user] = [False, False]
         df_cal = pd.DataFrame(init_data)
         
-    # Sicherstellen, dass alle aktuellen User Spalten haben
     for user in user_liste:
         if user not in df_cal.columns:
             df_cal[user] = False
             
-    # Konvertierung der User-Spalten in Booleans (damit Checkboxen entstehen)
     for user in user_liste:
         df_cal[user] = df_cal[user].astype(bool)
 
-    # Die Matrix anzeigen
     edited_df = st.data_editor(
         df_cal, 
         num_rows="dynamic", 
@@ -375,7 +374,6 @@ elif menu == "📅 Besichtigungs-Kalender":
     st.divider()
     st.subheader("🔥 Top Termine")
     
-    # Auswertung: Zählt, wie viele Häkchen pro Zeile gesetzt sind
     gute_termine = []
     for idx, row in edited_df.iterrows():
         zusagen = sum([1 for user in user_liste if row.get(user) == True])
@@ -388,7 +386,6 @@ elif menu == "📅 Besichtigungs-Kalender":
             })
             
     if gute_termine:
-        # Sortiert nach der Anzahl der Zusagen
         gute_termine_sortiert = sorted(gute_termine, key=lambda x: x["anzahl"], reverse=True)
         for t in gute_termine_sortiert:
             st.success(f"✅ **{t['termin']}**: {t['anzahl']} Zusagen ({t['wer']})")
