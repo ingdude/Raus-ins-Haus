@@ -132,20 +132,7 @@ if menu == "🏠 Übersicht":
         for i, row in display_df.iterrows():
             real_index = row['index'] 
             
-           with st.container(border=True):
-                # Titel und Score verschmolzen für perfekte Höhe, Menü rechts
-                c_title, c_menu = st.columns([0.9, 0.1])
-                
-                with c_title:
-                    ds = row.get("Durchschnitt", 0)
-                    score_str = f"🔥 {round(ds, 1)}" if ds > 0 else "⚪ -"
-                    # Packt beides in EINE Überschrift, damit nichts verrutscht
-                    st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')} &nbsp;&nbsp;|&nbsp;&nbsp; {score_str}")
-                    
-                with c_menu:
-                    with st.popover("⋮"):
-                        st.markdown("**✏️ Bearbeiten / Löschen**")
-                        # ... (hier geht dein Formular ganz normal weiter)
+            with st.container(border=True):
                 # Titel, Durchschnitts-Score und Menü in einer Zeile
                 c_title, c_score, c_menu = st.columns([0.75, 0.15, 0.1])
                 with c_title:
@@ -195,7 +182,7 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                col_img, col_txt = st.columns(2)
+                col_img, col_txt = st.columns()
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
@@ -229,7 +216,7 @@ if menu == "🏠 Übersicht":
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
                         with st.popover("⭐️ Bewerten", use_container_width=True):
-                            new_score = st.selectbox("Deine Note", options=[1, 2, 3, 4, 5], index=safe_score - 1, key=f"s_{real_index}")
+                            new_score = st.selectbox("Deine Note", options=, index=safe_score - 1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
