@@ -41,7 +41,12 @@ def load_data(sheet_name="Immobilien"):
             if "Archiviert" not in df.columns:
                 df["Archiviert"] = False
             else:
-                df["Archiviert"] = df["Archiviert"].astype(str).str.lower().map({'true': True, '1': True, 'yes': True}).fillna(False)
+                def is_true_val(v):
+                    if isinstance(v, bool): return v
+                    if isinstance(v, str): return v.lower().strip() in ['true', '1', 'yes', 'wahr', 't', 'y', 'ja', 'j']
+                    try: return float(v) > 0
+                    except: return False
+                df["Archiviert"] = df["Archiviert"].apply(is_true_val)
         return df
     except Exception as e:
         st.error(f"Datenbank-Fehler: {e}")
@@ -160,7 +165,7 @@ if menu == "🏠 Übersicht":
                         
                 with c_menu:
                     with st.popover("⋮"):
-                        st.markdown("**✏️ Bearbeiten**")
+                        st.markdown("**✏️ Bearbeiten / Löschen**")
                         with st.form(f"edit_{real_index}"):
                             e_titel = st.text_input("Titel", row.get("Titel", ""))
                             e_lage = st.text_input("Lage (Ort / PLZ)", row.get("Lage", ""))
@@ -495,4 +500,3 @@ elif menu == "⚙️ Admin (User)":
     if st.button("User-Liste speichern"):
         save_data(edited_user_df, sheet_name="User")
         st.success("Die User-Liste wurde aktualisiert!")
-
