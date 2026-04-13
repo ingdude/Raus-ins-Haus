@@ -217,7 +217,7 @@ if menu == "🏠 Übersicht":
                         
                         with st.popover("⭐️ Bewerten", use_container_width=True):
                             # UX-UPDATE: Dropdown statt Slider für saubere Bedienung!
-                         new_score = st.selectbox("Deine Note", options=, index=safe_score-1, key=f"s_{real_index}")
+                         new_score = st.selectbox("Deine Note", options=, index=safe_score 1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
