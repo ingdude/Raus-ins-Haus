@@ -132,7 +132,20 @@ if menu == "🏠 Übersicht":
         for i, row in display_df.iterrows():
             real_index = row['index'] 
             
-            with st.container(border=True):
+           with st.container(border=True):
+                # Titel und Score verschmolzen für perfekte Höhe, Menü rechts
+                c_title, c_menu = st.columns([0.9, 0.1])
+                
+                with c_title:
+                    ds = row.get("Durchschnitt", 0)
+                    score_str = f"🔥 {round(ds, 1)}" if ds > 0 else "⚪ -"
+                    # Packt beides in EINE Überschrift, damit nichts verrutscht
+                    st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')} &nbsp;&nbsp;|&nbsp;&nbsp; {score_str}")
+                    
+                with c_menu:
+                    with st.popover("⋮"):
+                        st.markdown("**✏️ Bearbeiten / Löschen**")
+                        # ... (hier geht dein Formular ganz normal weiter)
                 # Titel, Durchschnitts-Score und Menü in einer Zeile
                 c_title, c_score, c_menu = st.columns([0.75, 0.15, 0.1])
                 with c_title:
