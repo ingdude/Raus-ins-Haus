@@ -398,12 +398,28 @@ elif menu == "🗃️ Archiv":
         if archiv_df.empty:
             st.info("Im Moment gibt es keine archivierten Objekte.")
         else:
+            score_cols = [col for col in archiv_df.columns if col.startswith("Score_")]
+            if score_cols:
+                archiv_df[score_cols] = archiv_df[score_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
+                archiv_df["Durchschnitt"] = archiv_df[score_cols].mean(axis=1).fillna(0)
+            else:
+                archiv_df["Durchschnitt"] = 0
+
             for i, row in archiv_df.iterrows():
                 real_index = row['index']
                 with st.container(border=True):
-                    c_title, c_menu = st.columns([0.8, 0.2], vertical_alignment="center")
-                    with c_title:
-                        st.markdown(f"### {row.get('Titel', 'Objekt')}")
+                    c_title_score, c_menu = st.columns([0.8, 0.2], vertical_alignment="center")
+                    
+                    with c_title_score:
+                        ds = row.get("Durchschnitt", 0)
+                        if ds > 0:
+                            score_str = f"&nbsp;&nbsp;&nbsp; <span style='color: #ffaa00;'>🔥 {round(ds, 1)}</span>"
+                        else:
+                            score_str = "&nbsp;&nbsp;&nbsp; ⚪ -"
+                            
+                        titel_text = f"### #{i+1} | {row.get('Titel', 'Objekt')}"
+                        st.markdown(f"{titel_text} {score_str}", unsafe_allow_html=True)
+                    
                     with c_menu:
                         if st.button("↩️ Wiederherstellen", key=f"restore_{real_index}", use_container_width=True):
                             df.at[real_index, "Archiviert"] = False
@@ -426,9 +442,43 @@ elif menu == "🗃️ Archiv":
                     with col_txt:
                         p = float(row.get('Kaufpreis', 0) or 0)
                         preis_form = f"{int(p):,}".replace(",", ".") + " €"
-                        st.write(f"**Preis:** {preis_form} | **Lage:** {row.get('Lage', '')}")
-                        if str(row.get("URL", "")).startswith("http"):
-                            st.link_button("🔗 Zum Inserat", row["URL"])
+                        
+                        st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Preis:</b> {preis_form} | <b>Lage:</b> {row.get('Lage', '')}</p>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Fahrstrecke Wien:</b> {row.get('Distanz_Wien', 0)} km</p>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Wohnfläche:</b> {row.get('Wohnfläche', 0)} m² | <b>Grundfläche:</b> {row.get('Grundfläche', 0)} m²</p>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='color: gray; font-size: 0.9em; margin-top: 1em;'>Hinzugefügt von: {row.get('User', 'Unbekannt')}</p>", unsafe_allow_html=True)
+                        
+                        st.divider()
+
+                        c_btn1, c_btn2 = st.columns(2)
+                        with c_btn1:
+                            if str(row.get("URL", "")).startswith("http"):
+                                st.link_button("🔗 Anzeige", row["URL"], use_container_width=True)
+                        with c_btn2:
+                            drive_url = str(row.get("Drive-Link", ""))
+                            if drive_url.startswith("http"):
+                                st.link_button("📂 Drive", drive_url, use_container_width=True)
+                            
+                        st.divider()
+                        
+                        st.markdown("##### 💬 Haus-Chat (Schreibgeschützt)")
+                        
+                        chat_raw = str(row.get("Chat_Historie", "[]")).strip()
+                        if not chat_raw.startswith("["): chat_raw = "[]"
+                        
+                        try:
+                            chat_history = json.loads(chat_raw)
+                        except:
+                            chat_history = []
+
+                        with st.container(height=250): 
+                            if not chat_history:
+                                st.info("Keine Nachrichten in der Historie.")
+                            else:
+                                for msg in chat_history:
+                                    with st.chat_message(msg["user"]):
+                                        st.markdown(f"**{msg['user']}** <span style='font-size:0.7em; color:gray;'>({msg['time']})</span>", unsafe_allow_html=True)
+                                        st.write(msg["text"])
 
 # --- 📅 NEUER DOODLE-STYLE KALENDER ---
 elif menu == "📅 Besichtigungs-Kalender":
