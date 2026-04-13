@@ -4,6 +4,8 @@ import pandas as pd
 from geopy.geocoders import Nominatim
 import folium
 from streamlit_folium import st_folium
+import json
+from datetime import datetime
 
 # --- CONFIG & LOGIN ---
 st.set_page_config(page_title="Raus ins Haus", layout="wide")
@@ -88,6 +90,10 @@ if menu == "🏠 Übersicht":
     df = load_data("Immobilien")
     
     if df is not None and not df.empty:
+        # Sicherstellen, dass die Chat-Spalte existiert, um Fehler zu vermeiden
+        if "Chat_Historie" not in df.columns:
+            df["Chat_Historie"] = "[]"
+
         score_cols = [col for col in df.columns if col.startswith("Score_")]
         if score_cols:
             df[score_cols] = df[score_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
@@ -144,7 +150,6 @@ if menu == "🏠 Übersicht":
                             e_km = st.number_input("Km nach Wien", value=float(row.get("Distanz_Wien", 0) or 0))
                             e_url = st.text_input("Anzeigen-Link", row.get("URL", ""))
                             e_bild = st.text_input("Bild-URL", row.get("Bild-URL", ""))
-                            # NEU: Drive-Link im Bearbeiten-Menü
                             e_drive = st.text_input("Google Drive Ordner Link", row.get("Drive-Link", ""))
                             
                             if st.form_submit_button("Änderungen speichern"):
@@ -197,7 +202,6 @@ if menu == "🏠 Übersicht":
                         
                     st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
                     
-                    # LINK-BUTTONS (Anzeige & Drive)
                     c_link1, c_link2 = st.columns(2)
                     with c_link1:
                         if str(row.get("URL", "")).startswith("http"):
@@ -209,40 +213,77 @@ if menu == "🏠 Übersicht":
                         
                     st.divider()
                     
-                    st.markdown("##### 💬 Feedback der Gruppe")
-                    comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
-                    hat_kommentare = False
+                    # ---------------------------------------------------------
+                    # EIGENE BEWERTUNG (Slider)
+                    # ---------------------------------------------------------
+                    st.markdown("##### Deine Bewertung")
+                    mein_score_col = f"Score_{st.session_state.user_name}"
+                    raw_score = row.get(mein_score_col, 3)
+                    safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
+                        
+                    c_slide, c_empty = st.columns(2)
+                    with c_slide:
+                        new_score = st.slider(f"Note für dieses Objekt", 1, 5, safe_score, key=f"s_{real_index}")
+                        if st.button("Note Speichern", key=f"btn_score_{real_index}"):
+                            df.at[real_index, mein_score_col] = new_score
+                            save_data(df)
+                            st.rerun()
+
+                    st.divider()
+
+                    # ---------------------------------------------------------
+                    # NEUER GRUPPEN-CHAT
+                    # ---------------------------------------------------------
+                    st.markdown("##### 💬 Haus-Chat")
                     
+                    chat_raw = str(row.get("Chat_Historie", "[]")).strip()
+                    if not chat_raw.startswith("["): chat_raw = "[]"
+                    
+                    try:
+                        chat_history = json.loads(chat_raw)
+                    except:
+                        chat_history = []
+
+                    # 1. Chat-Verlauf anzeigen (im schönen Streamlit Design)
+                    with st.container(height=250): # Scrollbarer Container
+                        if not chat_history:
+                            st.info("Noch keine Nachrichten. Schreib als Erster!")
+                        else:
+                            for msg in chat_history:
+                                with st.chat_message(msg["user"]):
+                                    st.markdown(f"**{msg['user']}** <span style='font-size:0.7em; color:gray;'>({msg['time']})</span>", unsafe_allow_html=True)
+                                    st.write(msg["text"])
+
+                    # 2. Neue Nachricht senden
+                    c_msg, c_send = st.columns([0.8, 0.2])
+                    with c_msg:
+                        new_msg = st.text_input("Nachricht...", key=f"chat_in_{real_index}", label_visibility="collapsed", placeholder="Schreibe eine Nachricht...")
+                    with c_send:
+                        if st.button("Senden", key=f"chat_btn_{real_index}", use_container_width=True):
+                            if new_msg.strip():
+                                now_str = datetime.now().strftime("%d.%m. %H:%M")
+                                chat_history.append({"user": st.session_state.user_name, "time": now_str, "text": new_msg.strip()})
+                                df.at[real_index, "Chat_Historie"] = json.dumps(chat_history)
+                                save_data(df)
+                                st.rerun()
+
+                    # ---------------------------------------------------------
+                    # LEGACY ARCHIV (Für alte Kommentare)
+                    # ---------------------------------------------------------
+                    comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
+                    hat_alte_kommentare = False
+                    alte_texte = []
                     for c_col in comm_cols:
                         txt = str(row.get(c_col, "")).strip()
                         if txt and txt != "nan":
                             user_wer = c_col.replace('Kommentar_', '')
-                            st.markdown(f"""
-                            <div style='background-color: rgba(128,128,128,0.1); padding: 8px; border-radius: 5px; margin-bottom: 5px; font-size: 0.85em;'>
-                                <strong>{user_wer}:</strong> {txt}
-                            </div>
-                            """, unsafe_allow_html=True)
-                            hat_kommentare = True
+                            alte_texte.append(f"**{user_wer}:** {txt}")
+                            hat_alte_kommentare = True
                             
-                    if not hat_kommentare:
-                        st.markdown("<div style='font-size: 0.85em; font-style: italic; margin-bottom: 10px;'>Noch keine Kommentare vorhanden.</div>", unsafe_allow_html=True)
-                    
-                    mein_score_col = f"Score_{st.session_state.user_name}"
-                    mein_comm_col = f"Kommentar_{st.session_state.user_name}"
-                    
-                    raw_score = row.get(mein_score_col, 3)
-                    safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
-                        
-                    c_slide, c_text = st.columns(2)
-                    with c_slide:
-                        new_score = st.slider(f"Deine Note", 1, 5, safe_score, key=f"s_{real_index}")
-                        if st.button("Speichern", key=f"btn_{real_index}", use_container_width=True):
-                            df.at[real_index, mein_score_col] = st.session_state[f"s_{real_index}"]
-                            df.at[real_index, mein_comm_col] = st.session_state[f"c_{real_index}"]
-                            save_data(df)
-                            st.rerun()
-                    with c_text:
-                        st.text_area("Dein Kommentar", str(row.get(mein_comm_col, "")).replace("nan", ""), key=f"c_{real_index}", height=100)
+                    if hat_alte_kommentare:
+                        with st.expander("🗄️ Alte Einzel-Kommentare ansehen"):
+                            for t in alte_texte:
+                                st.markdown(t)
 
 # --- 🗺️ KARTENANSICHT ---
 elif menu == "🗺️ Kartenansicht":
@@ -314,7 +355,6 @@ elif menu == "➕ Objekt hinzufügen":
         titel = st.text_input("Titel (z.B. Haus am See)")
         url = st.text_input("Anzeigen-Link (URL)")
         bild = st.text_input("Bild-URL (Rechtsklick auf Bild -> Adresse kopieren)")
-        # NEU: Drive-Link im Hinzufügen-Menü
         drive = st.text_input("Google Drive Ordner Link (für eigene Fotos/PDFs)")
         kat = st.selectbox("Typ", ["Haus", "Grundstück"])
         preis = st.number_input("Preis (€)", step=1000)
@@ -332,7 +372,8 @@ elif menu == "➕ Objekt hinzufügen":
                 "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
                 "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name,
                 "lat": lat if lat else "", 
-                "lon": lon if lon else ""
+                "lon": lon if lon else "",
+                "Chat_Historie": "[]" # Initialisiert den Chat als leeres Array
             }])
             save_data(pd.concat([df, new_row], ignore_index=True))
             st.success("Erfolgreich hinzugefügt!")
