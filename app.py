@@ -204,10 +204,10 @@ if menu == "🏠 Übersicht":
                     p = float(row.get('Kaufpreis', 0) or 0)
                     preis_form = f"{int(p):,}".replace(",", ".") + " €"
                     
-                    st.write(f"**Preis:** {preis_form} | **Lage:** {row.get('Lage', '')}")
-                    st.write(f"**Fahrstrecke Wien:** {row.get('Distanz_Wien', 0)} km")
-                    st.write(f"**Wohnfläche:** {row.get('Wohnfläche', 0)} m² | **Grundfläche:** {row.get('Grundfläche', 0)} m²")
-                    st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
+                    st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Preis:</b> {preis_form} | <b>Lage:</b> {row.get('Lage', '')}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Fahrstrecke Wien:</b> {row.get('Distanz_Wien', 0)} km</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Wohnfläche:</b> {row.get('Wohnfläche', 0)} m² | <b>Grundfläche:</b> {row.get('Grundfläche', 0)} m²</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='color: gray; font-size: 0.9em; margin-top: 1em;'>Hinzugefügt von: {row.get('User', 'Unbekannt')}</p>", unsafe_allow_html=True)
                     
                     st.divider()
 
