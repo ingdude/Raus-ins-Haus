@@ -90,7 +90,6 @@ if menu == "🏠 Übersicht":
     df = load_data("Immobilien")
     
     if df is not None and not df.empty:
-        # Sicherstellen, dass die Chat-Spalte existiert, um Fehler zu vermeiden
         if "Chat_Historie" not in df.columns:
             df["Chat_Historie"] = "[]"
 
@@ -176,7 +175,7 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                col_img, col_txt = st.columns(2)
+                col_img, col_txt = st.columns()
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
@@ -194,14 +193,36 @@ if menu == "🏠 Übersicht":
                     st.write(f"**Fahrstrecke Wien:** {row.get('Distanz_Wien', 0)} km")
                     st.write(f"**Wohnfläche:** {row.get('Wohnfläche', 0)} m² | **Grundfläche:** {row.get('Grundfläche', 0)} m²")
                     
+                    st.divider()
+
+                    # ---------------------------------------------------------
+                    # KOMPAKTER BEWERTUNGS-BLOCK (POPOVER)
+                    # ---------------------------------------------------------
                     ds = row.get("Durchschnitt", 0)
-                    if ds > 0:
-                        st.markdown(f"### 🔥 Ø Bewertung: {round(ds, 1)} / 5")
-                    else:
-                        st.markdown("### ⚪ Noch keine Bewertungen")
-                        
-                    st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
+                    c_score, c_rate = st.columns(2)
                     
+                    with c_score:
+                        if ds > 0:
+                            st.markdown(f"### 🔥 Ø {round(ds, 1)} / 5")
+                        else:
+                            st.markdown("### ⚪ Keine Note")
+                        st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
+                        
+                    with c_rate:
+                        mein_score_col = f"Score_{st.session_state.user_name}"
+                        raw_score = row.get(mein_score_col, 3)
+                        safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
+                        
+                        st.write("") # Kleiner optischer Abstandhalter
+                        with st.popover("⭐️ Eigene Note vergeben", use_container_width=True):
+                            # UPDATE: step=1 garantiert ganze Zahlen
+                            new_score = st.slider("Deine Note", 1, 5, safe_score, step=1, key=f"s_{real_index}")
+                            if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
+                                df.at[real_index, mein_score_col] = new_score
+                                save_data(df)
+                                st.rerun()
+
+                    # LINK-BUTTONS (Anzeige & Drive)
                     c_link1, c_link2 = st.columns(2)
                     with c_link1:
                         if str(row.get("URL", "")).startswith("http"):
@@ -214,25 +235,7 @@ if menu == "🏠 Übersicht":
                     st.divider()
                     
                     # ---------------------------------------------------------
-                    # EIGENE BEWERTUNG (Slider)
-                    # ---------------------------------------------------------
-                    st.markdown("##### Deine Bewertung")
-                    mein_score_col = f"Score_{st.session_state.user_name}"
-                    raw_score = row.get(mein_score_col, 3)
-                    safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
-                        
-                    c_slide, c_empty = st.columns(2)
-                    with c_slide:
-                        new_score = st.slider(f"Note für dieses Objekt", 1, 5, safe_score, key=f"s_{real_index}")
-                        if st.button("Note Speichern", key=f"btn_score_{real_index}"):
-                            df.at[real_index, mein_score_col] = new_score
-                            save_data(df)
-                            st.rerun()
-
-                    st.divider()
-
-                    # ---------------------------------------------------------
-                    # NEUER GRUPPEN-CHAT
+                    # GRUPPEN-CHAT
                     # ---------------------------------------------------------
                     st.markdown("##### 💬 Haus-Chat")
                     
@@ -244,8 +247,7 @@ if menu == "🏠 Übersicht":
                     except:
                         chat_history = []
 
-                    # 1. Chat-Verlauf anzeigen (im schönen Streamlit Design)
-                    with st.container(height=250): # Scrollbarer Container
+                    with st.container(height=250): 
                         if not chat_history:
                             st.info("Noch keine Nachrichten. Schreib als Erster!")
                         else:
@@ -254,7 +256,6 @@ if menu == "🏠 Übersicht":
                                     st.markdown(f"**{msg['user']}** <span style='font-size:0.7em; color:gray;'>({msg['time']})</span>", unsafe_allow_html=True)
                                     st.write(msg["text"])
 
-                    # 2. Neue Nachricht senden
                     c_msg, c_send = st.columns([0.8, 0.2])
                     with c_msg:
                         new_msg = st.text_input("Nachricht...", key=f"chat_in_{real_index}", label_visibility="collapsed", placeholder="Schreibe eine Nachricht...")
@@ -267,9 +268,7 @@ if menu == "🏠 Übersicht":
                                 save_data(df)
                                 st.rerun()
 
-                    # ---------------------------------------------------------
-                    # LEGACY ARCHIV (Für alte Kommentare)
-                    # ---------------------------------------------------------
+                    # LEGACY ARCHIV
                     comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
                     hat_alte_kommentare = False
                     alte_texte = []
@@ -373,7 +372,7 @@ elif menu == "➕ Objekt hinzufügen":
                 "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name,
                 "lat": lat if lat else "", 
                 "lon": lon if lon else "",
-                "Chat_Historie": "[]" # Initialisiert den Chat als leeres Array
+                "Chat_Historie": "[]"
             }])
             save_data(pd.concat([df, new_row], ignore_index=True))
             st.success("Erfolgreich hinzugefügt!")
