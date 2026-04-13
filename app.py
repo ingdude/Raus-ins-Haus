@@ -203,19 +203,19 @@ if menu == "🏠 Übersicht":
                     
                     st.divider()
 
-                    # Die 3er-Werkzeugleiste mit korrekter Klammer!
+                    # Die 3er-Werkzeugleiste 
                     c_btn1, c_btn2, c_btn3 = st.columns(3)
                     
                     with c_btn1:
                         if str(row.get("URL", "")).startswith("http"):
-                            st.link_button("🔗 Anzeige öffnen", row["URL"], use_container_width=True)
+                            st.link_button("🔗 Anzeige", row["URL"], use_container_width=True)
                             
                     with c_btn2:
                         mein_score_col = f"Score_{st.session_state.user_name}"
                         raw_score = row.get(mein_score_col, 3)
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
-                        with st.popover("⭐️ Note vergeben", use_container_width=True):
+                        with st.popover("⭐️ Bewerten", use_container_width=True):
                             # UX-UPDATE: Dropdown statt Slider für saubere Bedienung!
                             new_score = st.selectbox("Deine Note", options=, index=safe_score-1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
@@ -226,7 +226,7 @@ if menu == "🏠 Übersicht":
                     with c_btn3:
                         drive_url = str(row.get("Drive-Link", ""))
                         if drive_url.startswith("http"):
-                            st.link_button("📂 Dokumente", drive_url, use_container_width=True)
+                            st.link_button("📂 Drive", drive_url, use_container_width=True)
                         
                     st.divider()
                     
