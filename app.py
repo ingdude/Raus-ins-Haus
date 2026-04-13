@@ -233,7 +233,7 @@ if menu == "🏠 Übersicht":
                     raw_score = row.get(mein_score_col, 3)
                     safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
-                    c_slide, c_text = st.columns()
+                    c_slide, c_text = st.columns(2)
                     with c_slide:
                         new_score = st.slider(f"Deine Note", 1, 5, safe_score, key=f"s_{real_index}")
                         if st.button("Speichern", key=f"btn_{real_index}", use_container_width=True):
