@@ -216,7 +216,7 @@ if menu == "🏠 Übersicht":
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
                         with st.popover("⭐️ Bewerten", use_container_width=True):
-                            new_score = st.selectbox("Deine Note", options=, index=safe_score - 1, key=f"s_{real_index}")
+                            new_score = st.selectbox("Deine Note", options=[1, 2, 3, 4, 5], index=safe_score - 1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
