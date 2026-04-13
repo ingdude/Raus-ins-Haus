@@ -133,9 +133,16 @@ if menu == "🏠 Übersicht":
             real_index = row['index'] 
             
             with st.container(border=True):
-                c_title, c_menu = st.columns([0.9, 0.1])
+                # NEU: Titel, Durchschnitts-Score und Menü in einer Zeile
+                c_title, c_score, c_menu = st.columns([0.75, 0.15, 0.1])
                 with c_title:
                     st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}")
+                with c_score:
+                    ds = row.get("Durchschnitt", 0)
+                    if ds > 0:
+                        st.markdown(f"### 🔥 {round(ds, 1)}")
+                    else:
+                        st.markdown("### ⚪ -")
                 with c_menu:
                     with st.popover("⋮"):
                         st.markdown("**✏️ Bearbeiten / Löschen**")
@@ -175,7 +182,7 @@ if menu == "🏠 Übersicht":
                             save_data(df.drop(real_index))
                             st.rerun()
 
-                col_img, col_txt = st.columns(2)
+                col_img, col_txt = st.columns()
                 with col_img:
                     bild_url = str(row.get("Bild-URL", ""))
                     if bild_url.startswith("http"):
@@ -192,45 +199,33 @@ if menu == "🏠 Übersicht":
                     st.write(f"**Preis:** {preis_form} | **Lage:** {row.get('Lage', '')}")
                     st.write(f"**Fahrstrecke Wien:** {row.get('Distanz_Wien', 0)} km")
                     st.write(f"**Wohnfläche:** {row.get('Wohnfläche', 0)} m² | **Grundfläche:** {row.get('Grundfläche', 0)} m²")
+                    st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
                     
                     st.divider()
 
-                    # ---------------------------------------------------------
-                    # KOMPAKTER BEWERTUNGS-BLOCK (POPOVER)
-                    # ---------------------------------------------------------
-                    ds = row.get("Durchschnitt", 0)
-                    c_score, c_rate = st.columns(2)
+                    # NEU: Die 3er-Werkzeugleiste (Anzeige, Bewertung, Drive)
+                    c_btn1, c_btn2, c_btn3 = st.columns(3)
                     
-                    with c_score:
-                        if ds > 0:
-                            st.markdown(f"### 🔥 Ø {round(ds, 1)} / 5")
-                        else:
-                            st.markdown("### ⚪ Keine Note")
-                        st.caption(f"Hinzugefügt von: {row.get('User', 'Unbekannt')}")
-                        
-                    with c_rate:
+                    with c_btn1:
+                        if str(row.get("URL", "")).startswith("http"):
+                            st.link_button("🔗 Anzeige öffnen", row["URL"], use_container_width=True)
+                            
+                    with c_btn2:
                         mein_score_col = f"Score_{st.session_state.user_name}"
                         raw_score = row.get(mein_score_col, 3)
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
-                        st.write("") # Kleiner optischer Abstandhalter
-                        with st.popover("⭐️ Eigene Note vergeben", use_container_width=True):
-                            # UPDATE: step=1 garantiert ganze Zahlen
+                        with st.popover("⭐️ Note vergeben", use_container_width=True):
                             new_score = st.slider("Deine Note", 1, 5, safe_score, step=1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
                                 st.rerun()
-
-                    # LINK-BUTTONS (Anzeige & Drive)
-                    c_link1, c_link2 = st.columns(2)
-                    with c_link1:
-                        if str(row.get("URL", "")).startswith("http"):
-                            st.link_button("🔗 Anzeige öffnen", row["URL"], use_container_width=True)
-                    with c_link2:
+                                
+                    with c_btn3:
                         drive_url = str(row.get("Drive-Link", ""))
                         if drive_url.startswith("http"):
-                            st.link_button("📂 Dokumente & Medien", drive_url, use_container_width=True)
+                            st.link_button("📂 Dokumente", drive_url, use_container_width=True)
                         
                     st.divider()
                     
@@ -267,22 +262,6 @@ if menu == "🏠 Übersicht":
                                 df.at[real_index, "Chat_Historie"] = json.dumps(chat_history)
                                 save_data(df)
                                 st.rerun()
-
-                    # LEGACY ARCHIV
-                    comm_cols = [col for col in df.columns if col.startswith("Kommentar_")]
-                    hat_alte_kommentare = False
-                    alte_texte = []
-                    for c_col in comm_cols:
-                        txt = str(row.get(c_col, "")).strip()
-                        if txt and txt != "nan":
-                            user_wer = c_col.replace('Kommentar_', '')
-                            alte_texte.append(f"**{user_wer}:** {txt}")
-                            hat_alte_kommentare = True
-                            
-                    if hat_alte_kommentare:
-                        with st.expander("🗄️ Alte Einzel-Kommentare ansehen"):
-                            for t in alte_texte:
-                                st.markdown(t)
 
 # --- 🗺️ KARTENANSICHT ---
 elif menu == "🗺️ Kartenansicht":
