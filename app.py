@@ -70,25 +70,26 @@ def get_coords(address):
         if location:
             return location.latitude, location.longitude
     except Exception as e:
-        st.warning(f"Geocoding-Warnung für '{address}': Ort nicht gefunden.")
+        st.warning(f"Geocoding-Warnung für '{address}': API überlastet oder Ort nicht gefunden.")
         return None, None
     return None, None
 
-# --- USER-LISTE ---
+# --- DYNAMISCHE USER-LISTE LADEN ---
 try:
     user_df = load_data("User")
     if not user_df.empty and "Name" in user_df.columns:
         user_liste = sorted(user_df["Name"].replace("", pd.NA).dropna().unique().tolist())
     else:
         user_liste = ["Anja", "Jan", "Katja", "Laurenz", "Timo"]
-except:
+except Exception as e:
     user_liste = ["Anja", "Jan", "Katja", "Laurenz", "Timo"]
 
 if "user_name" not in st.session_state:
     st.write("### Wer bist du?")
     with st.form("login_form"):
         u_name = st.selectbox("Bitte wähle deinen Namen:", user_liste)
-        if st.form_submit_button("Einloggen"):
+        submitted = st.form_submit_button("Einloggen")
+        if submitted:
             st.session_state.user_name = u_name
             st.rerun()
     st.stop()
@@ -104,7 +105,7 @@ if menu == "🏠 Übersicht":
     df = load_data("Immobilien")
     
     if not df.empty:
-        # Durchschnitt berechnen
+        # Score-Durchschnitt berechnen
         score_cols = [col for col in df.columns if col.startswith("Score_")]
         if score_cols:
             df[score_cols] = df[score_cols].replace("", pd.NA).apply(pd.to_numeric, errors='coerce')
@@ -121,7 +122,7 @@ if menu == "🏠 Übersicht":
         
         st.divider()
 
-        # Sortierung
+        # Sortierung anwenden
         if sort_wahl == "🔥 Beste Bewertung":
             df = df.sort_values(by="Durchschnitt", ascending=False)
         elif sort_wahl == "💰 Günstigster Preis":
@@ -137,14 +138,11 @@ if menu == "🏠 Übersicht":
         # 2. Archivierte raus
         display_df = display_df[display_df["Archiviert"] != True]
         
-        # 3. Kategorie-Filter
+        # 3. Kategorie-Filter anwenden
         if kat == "🕵️ Private Schätze":
             display_df = display_df[display_df["Privat"] == True]
         elif kat != "Alle":
             display_df = display_df[(display_df["Kategorie"] == kat) & (display_df["Privat"] == False)]
-        else:
-            # Bei "Alle" zeigen wir alles Öffentliche + die eigenen Privaten
-            pass
 
         display_df = display_df.reset_index(drop=False)
 
@@ -155,14 +153,14 @@ if menu == "🏠 Übersicht":
                 with c_title_score:
                     ds = row.get("Durchschnitt", 0)
                     score_str = f"&nbsp;&nbsp;&nbsp; <span style='color: #ffaa00;'>🔥 {round(ds, 1)}</span>" if ds > 0 else "&nbsp;&nbsp;&nbsp; ⚪ -"
-                    privat_tag = " <span style='color: #ff4b4b;'>(PRIVAT)</span>" if row["Privat"] else ""
+                    privat_tag = " <span style='color: #ff4b4b;'>(PRIVAT)</span>" if row.get("Privat", False) else ""
                     st.markdown(f"### #{i+1} | {row.get('Titel', 'Objekt')}{privat_tag} {score_str}", unsafe_allow_html=True)
                         
                 with c_menu:
                     with st.popover("⋮"):
                         with st.form(f"edit_{real_index}"):
                             e_titel = st.text_input("Titel", row.get("Titel", ""))
-                            e_privat = st.checkbox("Privat (nur für mich sichtbar)", value=row["Privat"])
+                            e_privat = st.checkbox("Privat (nur für mich sichtbar)", value=row.get("Privat", False))
                             e_lage = st.text_input("Lage", row.get("Lage", ""))
                             e_preis = st.number_input("Preis (€)", value=float(row.get('Kaufpreis', 0) or 0))
                             e_w_f = st.number_input("Wohnfläche", value=float(row.get("Wohnfläche", 0) or 0))
@@ -173,7 +171,7 @@ if menu == "🏠 Übersicht":
                             e_drive = st.text_input("Drive Link", row.get("Drive-Link", ""))
                             e_maps = st.text_input("Maps Link", row.get("Maps-Link", ""))
                             
-                            if st.form_submit_button("Speichern"):
+                            if st.form_submit_button("Änderungen speichern"):
                                 df.at[real_index, "Titel"] = e_titel
                                 df.at[real_index, "Privat"] = e_privat
                                 df.at[real_index, "Kaufpreis"] = e_preis
@@ -187,10 +185,10 @@ if menu == "🏠 Übersicht":
                                 df.at[real_index, "Maps-Link"] = e_maps
                                 save_data(df); st.rerun()
                                 
-                        if st.button("🗄️ Archivieren", key=f"arch_{real_index}"):
+                        if st.button("🗄️ Objekt archivieren", key=f"arch_{real_index}"):
                             df.at[real_index, "Archiviert"] = True
                             save_data(df); st.rerun()
-                        if st.button("🗑️ Löschen", key=f"del_{real_index}"):
+                        if st.button("🗑️ Objekt löschen", key=f"del_{real_index}"):
                             save_data(df.drop(real_index)); st.rerun()
 
                 col_img, col_txt = st.columns(2)
@@ -203,10 +201,13 @@ if menu == "🏠 Übersicht":
                     st.markdown(f"<p style='font-size: 1.1em;'><b>Preis:</b> {int(p):,} € | <b>Lage:</b> {row.get('Lage', '')}</p>".replace(",", "."), unsafe_allow_html=True)
                     st.markdown(f"**Wohnfläche:** {row.get('Wohnfläche', 0)} m² | **Grundfläche:** {row.get('Grundfläche', 0)} m²")
                     
-                    # User & Datum Anzeige
+                    # User & Datum Info
                     user = row.get('User', 'Unbekannt')
                     zeit = row.get('Zeitpunkt', '')
-                    st.markdown(f"<p style='color: gray; font-size: 0.85em;'>Hinzugefügt von: {user}{' am: ' + zeit if zeit else ''}</p>", unsafe_allow_html=True)
+                    info_text = f"Hinzugefügt von: {user}"
+                    if zeit: info_text += f" am: {zeit}"
+                    st.markdown(f"<p style='color: gray; font-size: 0.85em; margin-top: 1em;'>{info_text}</p>", unsafe_allow_html=True)
+                    
                     st.divider()
 
                     # Buttons
@@ -229,7 +230,8 @@ if menu == "🏠 Übersicht":
                     st.markdown("##### 💬 Haus-Chat")
                     chat_raw = str(row.get("Chat_Historie", "[]"))
                     chat_history = json.loads(chat_raw) if chat_raw.startswith("[") else []
-                    with st.container(height=150):
+                    with st.container(height=180):
+                        if not chat_history: st.info("Noch keine Nachrichten.")
                         for msg in chat_history:
                             with st.chat_message(msg["user"]):
                                 st.write(f"**{msg['user']}** ({msg['time']}): {msg['text']}")
@@ -246,11 +248,10 @@ elif menu == "➕ Objekt hinzufügen":
     st.title("Neues Objekt erfassen")
     df = load_data("Immobilien")
     with st.form("add_form", clear_on_submit=True):
-        titel = st.text_input("Titel")
+        titel = st.text_input("Titel (z.B. Haus am See)")
         is_privat = st.checkbox("Privat (nur für mich sichtbar)")
-        col1, col2 = st.columns(2)
-        url = col1.text_input("Anzeigen-Link")
-        bild = col2.text_input("Bild-URL")
+        url = st.text_input("Anzeigen-Link (URL)")
+        bild = st.text_input("Bild-URL")
         kat = st.selectbox("Typ", ["Haus", "Grundstück"])
         preis = st.number_input("Preis (€)", step=1000)
         ort = st.text_input("Ort / PLZ")
@@ -271,7 +272,7 @@ elif menu == "➕ Objekt hinzufügen":
 
 # --- 🗺️ KARTENANSICHT ---
 elif menu == "🗺️ Kartenansicht":
-    st.title("Landkarte 🗺️")
+    st.title("Wo liegen die Objekte? 🗺️")
     df = load_data("Immobilien")
     # Nur öffentliche oder eigene private auf Karte zeigen
     df = df[(df["Archiviert"] != True) & ((df["Privat"] == False) | (df["User"] == st.session_state.user_name))]
@@ -282,6 +283,8 @@ elif menu == "🗺️ Kartenansicht":
                 color = "red" if r["Privat"] else "blue"
                 folium.CircleMarker([r["lat"], r["lon"]], radius=10, color=color, fill=True, tooltip=r["Titel"]).add_to(m)
         st_folium(m, width=800, height=500)
+    else:
+        st.info("Keine Objekte für die Karte vorhanden.")
 
 # --- 🔗 LINK-SAMMLUNG ---
 elif menu == "🔗 Link-Sammlung":
@@ -289,28 +292,27 @@ elif menu == "🔗 Link-Sammlung":
     try: df_links = load_data("Links")
     except: df_links = pd.DataFrame(columns=["URL", "Beschreibung"])
     
-    # Anzeigen
-    for i, row in df_links.iterrows():
-        with st.container(border=True):
-            c1, c2 = st.columns([0.85, 0.15])
-            c1.markdown(f"[{row['URL']}]({row['URL']}) | <span style='color:gray;'>{row['Beschreibung']}</span>", unsafe_allow_html=True)
-            if c2.button("🗑️", key=f"dl_{i}"):
-                save_data(df_links.drop(i), "Links"); st.rerun()
+    if not df_links.empty:
+        for i, row in df_links.iterrows():
+            with st.container(border=True):
+                c1, c2 = st.columns([0.85, 0.15])
+                c1.markdown(f"[{row['URL']}]({row['URL']}) | <span style='color:gray;'>{row['Beschreibung']}</span>", unsafe_allow_html=True)
+                if c2.button("🗑️", key=f"dl_{i}"):
+                    save_data(df_links.drop(i), "Links"); st.rerun()
     
     with st.form("new_link"):
-        u, b = st.columns(2)
-        new_u = u.text_input("URL")
-        new_b = b.text_input("Beschreibung")
+        new_u = st.text_input("URL")
+        new_b = st.text_input("Beschreibung")
         if st.form_submit_button("Hinzufügen") and new_u:
             new_l = pd.DataFrame([{"URL": new_u, "Beschreibung": new_b}])
             save_data(pd.concat([df_links, new_l]), "Links"); st.rerun()
 
 # --- 🗃️ ARCHIV ---
 elif menu == "🗃️ Archiv":
-    st.title("Archiv 🗃️")
+    st.title("Archivierte Objekte 🗃️")
     df = load_data("Immobilien")
-    # Im Archiv sieht man auch nur eigene Private oder Öffentliche
     arch = df[(df["Archiviert"] == True) & ((df["Privat"] == False) | (df["User"] == st.session_state.user_name))]
+    if arch.empty: st.info("Das Archiv ist leer.")
     for i, row in arch.iterrows():
         with st.container(border=True):
             st.write(f"### {row['Titel']}")
@@ -322,5 +324,5 @@ elif menu == "🗃️ Archiv":
 elif menu == "⚙️ Admin (User)":
     st.title("User verwalten")
     u_df = load_data("User")
-    edited = st.data_editor(u_df, num_rows="dynamic")
+    edited = st.data_editor(u_df, num_rows="dynamic", use_container_width=True)
     if st.button("Speichern"): save_data(edited, "User"); st.success("Gespeichert!")
