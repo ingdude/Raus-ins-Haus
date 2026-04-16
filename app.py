@@ -560,7 +560,7 @@ elif menu == "🔗 Link-Sammlung":
         init_data = {"URL": [], "Beschreibung": [], "Hinzugefügt von": []}
         df_links = pd.DataFrame(init_data)
 
-   # --- 🔗 LINK-SAMMLUNG ---
+  # --- 🔗 LINK-SAMMLUNG ---
 elif menu == "🔗 Link-Sammlung":
     st.title("Link-Sammlung 🔗")
     st.write("Hier sammeln wir alle Webseiten und Portale für die Haussuche.")
@@ -632,7 +632,6 @@ elif menu == "🔗 Link-Sammlung":
                 st.rerun()
             else:
                 st.warning("Bitte gib mindestens eine URL ein.")
-        
 # --- ⚙️ ADMIN (USER-VERWALTUNG) ---
 elif menu == "⚙️ Admin (User)":
     st.title("User verwalten")
