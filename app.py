@@ -458,7 +458,7 @@ elif menu == "🗃️ Archiv":
                                 st.error("Bild-Link defekt")
                         else:
                             st.info("Kein Bild")
-                   with col_txt:
+                    with col_txt:
                         p = float(row.get('Kaufpreis', 0) or 0)
                         preis_form = f"{int(p):,}".replace(",", ".") + " €"
                         
