@@ -376,24 +376,24 @@ elif menu == "➕ Objekt hinzufügen":
         ort = st.text_input("Ort / PLZ")
         km = st.number_input("Fahrstrecke nach Wien (km)", step=1)
         
-       # Ändere den Block in "➕ Objekt hinzufügen" so ab:
-if st.form_submit_button("Objekt speichern"):
-    with st.spinner("Ermittle Koordinaten für die Karte..."):
-        lat, lon = get_coords(ort)
-        
-    new_row = pd.DataFrame([{
-        "Titel": titel, "URL": url, "Bild-URL": bild, "Drive-Link": drive, "Maps-Link": maps_link, "Kategorie": kat,
-        "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
-        "Lage": ort, "Distanz_Wien": km, 
-        "User": st.session_state.user_name,
-        "Zeitpunkt": datetime.now().strftime("%d.%m.%y"), # <-- NEU: Speichert das Datum
-        "lat": lat if lat else "", 
-        "lon": lon if lon else "",
-        "Chat_Historie": "[]",
-        "Archiviert": False
-    }])
-    save_data(pd.concat([df, new_row], ignore_index=True))
-    st.success("Erfolgreich hinzugefügt!")
+        # WICHTIG: Dieser Button muss eingerückt bleiben, damit er zum "with st.form" gehört!
+        if st.form_submit_button("Objekt speichern"):
+            with st.spinner("Ermittle Koordinaten für die Karte..."):
+                lat, lon = get_coords(ort)
+                
+            new_row = pd.DataFrame([{
+                "Titel": titel, "URL": url, "Bild-URL": bild, "Drive-Link": drive, "Maps-Link": maps_link, "Kategorie": kat,
+                "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
+                "Lage": ort, "Distanz_Wien": km, 
+                "User": st.session_state.user_name,
+                "Zeitpunkt": datetime.now().strftime("%d.%m.%y"), # <-- Das neue Datum!
+                "lat": lat if lat else "", 
+                "lon": lon if lon else "",
+                "Chat_Historie": "[]",
+                "Archiviert": False
+            }])
+            save_data(pd.concat([df, new_row], ignore_index=True))
+            st.success("Erfolgreich hinzugefügt!")
 
 # --- 🗃️ ARCHIV ---
 elif menu == "🗃️ Archiv":
