@@ -177,6 +177,7 @@ if menu == "🏠 Übersicht":
                             e_url = st.text_input("Anzeigen-Link", row.get("URL", ""))
                             e_bild = st.text_input("Bild-URL", row.get("Bild-URL", ""))
                             e_drive = st.text_input("Google Drive Ordner Link", row.get("Drive-Link", ""))
+                            e_maps = st.text_input("Google Maps Link", row.get("Maps-Link", ""))
                             
                             if st.form_submit_button("Änderungen speichern"):
                                 df.at[real_index, "Titel"] = e_titel
@@ -187,6 +188,7 @@ if menu == "🏠 Übersicht":
                                 df.at[real_index, "URL"] = e_url
                                 df.at[real_index, "Bild-URL"] = e_bild
                                 df.at[real_index, "Drive-Link"] = e_drive
+                                df.at[real_index, "Maps-Link"] = e_maps
                                 
                                 alte_lage = str(row.get("Lage", ""))
                                 if e_lage != alte_lage:
@@ -228,8 +230,8 @@ if menu == "🏠 Übersicht":
                     
                     st.divider()
 
-                    # Die 3er-Werkzeugleiste 
-                    c_btn1, c_btn2, c_btn3 = st.columns(3)
+                    # Die 4er-Werkzeugleiste 
+                    c_btn1, c_btn2, c_btn3, c_btn4 = st.columns(4)
                     
                     with c_btn1:
                         if str(row.get("URL", "")).startswith("http"):
@@ -251,6 +253,11 @@ if menu == "🏠 Übersicht":
                         drive_url = str(row.get("Drive-Link", ""))
                         if drive_url.startswith("http"):
                             st.link_button("📂 Drive", drive_url, use_container_width=True)
+                    
+                    with c_btn4:
+                        maps_url = str(row.get("Maps-Link", ""))
+                        if maps_url.startswith("http"):
+                            st.link_button("🗺️ Maps", maps_url, use_container_width=True)
                         
                     st.divider()
                     
@@ -361,6 +368,7 @@ elif menu == "➕ Objekt hinzufügen":
         url = st.text_input("Anzeigen-Link (URL)")
         bild = st.text_input("Bild-URL (Rechtsklick auf Bild -> Adresse kopieren)")
         drive = st.text_input("Google Drive Ordner Link (für eigene Fotos/PDFs)")
+        maps_link = st.text_input("Google Maps Link (Optional)")
         kat = st.selectbox("Typ", ["Haus", "Grundstück"])
         preis = st.number_input("Preis (€)", step=1000)
         w_f = st.number_input("Wohnfläche (m²)", step=1)
@@ -373,7 +381,7 @@ elif menu == "➕ Objekt hinzufügen":
                 lat, lon = get_coords(ort)
                 
             new_row = pd.DataFrame([{
-                "Titel": titel, "URL": url, "Bild-URL": bild, "Drive-Link": drive, "Kategorie": kat,
+                "Titel": titel, "URL": url, "Bild-URL": bild, "Drive-Link": drive, "Maps-Link": maps_link, "Kategorie": kat,
                 "Kaufpreis": preis, "Wohnfläche": w_f, "Grundfläche": g_f,
                 "Lage": ort, "Distanz_Wien": km, "User": st.session_state.user_name,
                 "lat": lat if lat else "", 
@@ -450,7 +458,7 @@ elif menu == "🗃️ Archiv":
                         
                         st.divider()
 
-                        c_btn1, c_btn2 = st.columns(2)
+                        c_btn1, c_btn2, c_btn3 = st.columns(3)
                         with c_btn1:
                             if str(row.get("URL", "")).startswith("http"):
                                 st.link_button("🔗 Anzeige", row["URL"], use_container_width=True)
@@ -458,6 +466,10 @@ elif menu == "🗃️ Archiv":
                             drive_url = str(row.get("Drive-Link", ""))
                             if drive_url.startswith("http"):
                                 st.link_button("📂 Drive", drive_url, use_container_width=True)
+                        with c_btn3:
+                            maps_url = str(row.get("Maps-Link", ""))
+                            if maps_url.startswith("http"):
+                                st.link_button("🗺️ Maps", maps_url, use_container_width=True)
                             
                         st.divider()
                         
