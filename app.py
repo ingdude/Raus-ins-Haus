@@ -219,14 +219,22 @@ if menu == "🏠 Übersicht":
                             st.error("Bild-Link defekt")
                     else:
                         st.info("Kein Bild")
-                with col_txt:
+               with col_txt:
                     p = float(row.get('Kaufpreis', 0) or 0)
                     preis_form = f"{int(p):,}".replace(",", ".") + " €"
                     
                     st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Preis:</b> {preis_form} | <b>Lage:</b> {row.get('Lage', '')}</p>", unsafe_allow_html=True)
                     st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Fahrstrecke Wien:</b> {row.get('Distanz_Wien', 0)} km</p>", unsafe_allow_html=True)
                     st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Wohnfläche:</b> {row.get('Wohnfläche', 0)} m² | <b>Grundfläche:</b> {row.get('Grundfläche', 0)} m²</p>", unsafe_allow_html=True)
-                    st.markdown(f"<p style='color: gray; font-size: 0.9em; margin-top: 1em;'>Hinzugefügt von: {row.get('User', 'Unbekannt')}</p>", unsafe_allow_html=True)
+                    
+                    # --- NEU: User & Datum dynamisch ---
+                    user = row.get('User', 'Unbekannt')
+                    zeit = row.get('Zeitpunkt', '')
+                    info_text = f"Hinzugefügt von: {user}"
+                    if zeit:
+                        info_text += f" am: {zeit}"
+                        
+                    st.markdown(f"<p style='color: gray; font-size: 0.9em; margin-top: 1em;'>{info_text}</p>", unsafe_allow_html=True)
                     
                     st.divider()
 
@@ -450,14 +458,22 @@ elif menu == "🗃️ Archiv":
                                 st.error("Bild-Link defekt")
                         else:
                             st.info("Kein Bild")
-                    with col_txt:
+                   with col_txt:
                         p = float(row.get('Kaufpreis', 0) or 0)
                         preis_form = f"{int(p):,}".replace(",", ".") + " €"
                         
                         st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Preis:</b> {preis_form} | <b>Lage:</b> {row.get('Lage', '')}</p>", unsafe_allow_html=True)
                         st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Fahrstrecke Wien:</b> {row.get('Distanz_Wien', 0)} km</p>", unsafe_allow_html=True)
                         st.markdown(f"<p style='font-size: 1.15em; margin-bottom: 0.5em;'><b>Wohnfläche:</b> {row.get('Wohnfläche', 0)} m² | <b>Grundfläche:</b> {row.get('Grundfläche', 0)} m²</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='color: gray; font-size: 0.9em; margin-top: 1em;'>Hinzugefügt von: {row.get('User', 'Unbekannt')}</p>", unsafe_allow_html=True)
+                        
+                        # --- NEU: User & Datum dynamisch ---
+                        user = row.get('User', 'Unbekannt')
+                        zeit = row.get('Zeitpunkt', '')
+                        info_text = f"Hinzugefügt von: {user}"
+                        if zeit:
+                            info_text += f" am: {zeit}"
+                            
+                        st.markdown(f"<p style='color: gray; font-size: 0.9em; margin-top: 1em;'>{info_text}</p>", unsafe_allow_html=True)
                         
                         st.divider()
 
