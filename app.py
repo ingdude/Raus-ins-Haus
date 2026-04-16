@@ -243,7 +243,7 @@ if menu == "🏠 Übersicht":
                         safe_score = 3 if pd.isna(raw_score) or raw_score == "" else int(float(raw_score))
                         
                         with st.popover("⭐️ Bewerten", use_container_width=True):
-                            new_score = st.selectbox("Deine Note", options= [1, 2, 3, 4, 5], index=safe_score - 1, key=f"s_{real_index}")
+                            new_score = st.selectbox("Deine Note", options=, index=safe_score - 1, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"btn_score_{real_index}", use_container_width=True):
                                 df.at[real_index, mein_score_col] = new_score
                                 save_data(df)
@@ -470,7 +470,7 @@ elif menu == "🗃️ Archiv":
                             maps_url = str(row.get("Maps-Link", ""))
                             if maps_url.startswith("http"):
                                 st.link_button("🗺️ Maps", maps_url, use_container_width=True)
-                            
+                        
                         st.divider()
                         
                         st.markdown("##### 💬 Haus-Chat (Schreibgeschützt)")
@@ -546,21 +546,8 @@ elif menu == "📅 Besichtigungs-Kalender":
             st.success(f"✅ **{t['termin']}**: {t['anzahl']} Zusagen ({t['wer']})")
     else:
         st.info("Aktuell gibt es noch keine Termine mit mind. 2 Zusagen.")
+
 # --- 🔗 LINK-SAMMLUNG ---
-elif menu == "🔗 Link-Sammlung":
-    st.title("Link-Sammlung 🔗")
-    st.write("Hier sammeln wir alle Webseiten und Portale für die Haussuche.")
-
-    # Daten laden oder initialisieren
-    try:
-        df_links = load_data("Links")
-        if df_links.empty:
-            raise ValueError("Leere Tabelle")
-    except Exception:
-        init_data = {"URL": [], "Beschreibung": [], "Hinzugefügt von": []}
-        df_links = pd.DataFrame(init_data)
-
-  # --- 🔗 LINK-SAMMLUNG ---
 elif menu == "🔗 Link-Sammlung":
     st.title("Link-Sammlung 🔗")
     st.write("Hier sammeln wir alle Webseiten und Portale für die Haussuche.")
@@ -632,6 +619,7 @@ elif menu == "🔗 Link-Sammlung":
                 st.rerun()
             else:
                 st.warning("Bitte gib mindestens eine URL ein.")
+        
 # --- ⚙️ ADMIN (USER-VERWALTUNG) ---
 elif menu == "⚙️ Admin (User)":
     st.title("User verwalten")
