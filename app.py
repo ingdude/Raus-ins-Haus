@@ -560,17 +560,71 @@ elif menu == "🔗 Link-Sammlung":
         init_data = {"URL": [], "Beschreibung": [], "Hinzugefügt von": []}
         df_links = pd.DataFrame(init_data)
 
-    # Formular zum Hinzufügen
-    with st.form("add_link_form", clear_on_submit=True):
-        new_url = st.text_input("Webseite (URL)", placeholder="https://www.willhaben.at/...")
-        new_desc = st.text_input("Beschreibung / Kommentar", placeholder="Gute Filter für Niederösterreich")
+   # --- 🔗 LINK-SAMMLUNG ---
+elif menu == "🔗 Link-Sammlung":
+    st.title("Link-Sammlung 🔗")
+    st.write("Hier sammeln wir alle Webseiten und Portale für die Haussuche.")
+
+    # Daten laden oder initialisieren
+    try:
+        df_links = load_data("Links")
+        if df_links.empty:
+            raise ValueError("Leere Tabelle")
+    except Exception:
+        # "Hinzugefügt von" wurde aus der Initialisierung entfernt
+        init_data = {"URL": [], "Beschreibung": []}
+        df_links = pd.DataFrame(init_data)
+
+    st.subheader("📌 Gespeicherte Portale")
+
+    # --- 1. LINKS ANZEIGEN (OBEN) ---
+    if not df_links.empty:
+        # Index resetten, falls Zeilen gelöscht wurden
+        df_links = df_links.reset_index(drop=True)
         
-        if st.form_submit_button("Link hinzufügen"):
+        for i, row in df_links.iterrows():
+            with st.container(border=True):
+                # Wir nutzen nur noch 2 Spalten: Links Inhalt, Rechts Löschen-Button
+                col_content, col_btn = st.columns([0.85, 0.15], vertical_alignment="center")
+                
+                with col_content:
+                    url = str(row.get('URL', '')).strip()
+                    desc = str(row.get('Beschreibung', '')).strip()
+                    
+                    # Link klickbar machen
+                    display_url = f"[{url}]({url})" if url.startswith("http") else url
+                    
+                    # Kompakte Darstellung: Link und Beschreibung nebeneinander in einer Zeile
+                    if desc:
+                        st.markdown(f"{display_url} &nbsp;&nbsp;|&nbsp;&nbsp; <span style='color: #a3a8b8;'>{desc}</span>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(display_url)
+                
+                with col_btn:
+                    if st.button("🗑️ Löschen", key=f"del_link_{i}", use_container_width=True):
+                        df_links = df_links.drop(i)
+                        save_data(df_links, sheet_name="Links")
+                        st.rerun()
+    else:
+        st.info("Noch keine Links gespeichert. Füge unten deinen ersten hinzu!")
+
+    st.divider()
+
+    # --- 2. EINGABEMASKE (UNTEN) ---
+    st.write("#### ➕ Neuen Link hinzufügen")
+    with st.form("add_link_form", clear_on_submit=True):
+        # Die Eingabefelder auf breiten Bildschirmen nebeneinander, am Handy untereinander
+        c_url, c_desc = st.columns(2)
+        with c_url:
+            new_url = st.text_input("Webseite (URL)", placeholder="https://www.willhaben.at/...")
+        with c_desc:
+            new_desc = st.text_input("Beschreibung / Kommentar", placeholder="Gute Filter für Niederösterreich")
+        
+        if st.form_submit_button("Link speichern"):
             if new_url.strip():
                 new_row = pd.DataFrame([{
-                    "URL": new_url,
-                    "Beschreibung": new_desc,
-                    "Hinzugefügt von": st.session_state.user_name
+                    "URL": new_url.strip(),
+                    "Beschreibung": new_desc.strip()
                 }])
                 df_links = pd.concat([df_links, new_row], ignore_index=True)
                 save_data(df_links, sheet_name="Links")
@@ -578,36 +632,6 @@ elif menu == "🔗 Link-Sammlung":
                 st.rerun()
             else:
                 st.warning("Bitte gib mindestens eine URL ein.")
-
-    st.divider()
-    st.subheader("📌 Gespeicherte Portale")
-
-    # Links anzeigen
-    if not df_links.empty:
-        # Index resetten, falls Zeilen gelöscht wurden
-        df_links = df_links.reset_index(drop=True)
-        
-        for i, row in df_links.iterrows():
-            with st.container(border=True):
-                col1, col2 = st.columns([0.85, 0.15], vertical_alignment="center")
-                with col1:
-                    st.markdown(f"**{row.get('Beschreibung', 'Keine Beschreibung')}**")
-                    url = str(row.get('URL', ''))
-                    
-                    if url.startswith("http"):
-                        st.write(f"[{url}]({url})")
-                    else:
-                        st.write(url)
-                        
-                    st.caption(f"Hinzugefügt von: {row.get('Hinzugefügt von', 'Unbekannt')}")
-                
-                with col2:
-                    if st.button("🗑️ Löschen", key=f"del_link_{i}", use_container_width=True):
-                        df_links = df_links.drop(i)
-                        save_data(df_links, sheet_name="Links")
-                        st.rerun()
-    else:
-        st.info("Noch keine Links gespeichert. Füge oben deinen ersten hinzu!")
         
 # --- ⚙️ ADMIN (USER-VERWALTUNG) ---
 elif menu == "⚙️ Admin (User)":
