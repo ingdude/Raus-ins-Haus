@@ -217,6 +217,6 @@ if menu == "🏠 Übersicht":
                     with c2:
                         mein_score_col = f"Score_{st.session_state.user_name}"
                         with st.popover("⭐️ Bewerten", use_container_width=True):
-                            new_score = st.selectbox("Note", options=, index=2, key=f"s_{real_index}")
+                            new_score = st.selectbox("Note", options=[1, 2, 3, 4, 5], index=2, key=f"s_{real_index}")
                             if st.button("Speichern", key=f"b_s_{real_index}"):
                                 df
